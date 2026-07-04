@@ -72,6 +72,7 @@ class AppContainer(context: Context) {
             studyItemDao = database.studyItemDao(),
             captureMateApi = captureMateApi,
             json = json,
+            appContext = appContext,
         )
     }
 }
