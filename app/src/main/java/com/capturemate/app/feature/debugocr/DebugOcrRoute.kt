@@ -110,6 +110,12 @@ fun DebugOcrRoute(
                     Text("마스킹 실행")
                 }
                 Button(
+                    onClick = viewModel::runAnalyzeOnCurrentMasked,
+                    enabled = state.maskedText.isNotBlank() && !state.isBusy,
+                ) {
+                    Text("분석(LLM) 실행")
+                }
+                Button(
                     onClick = viewModel::loadLatestScreenshotAndRunOcr,
                     enabled = state.hasImagePermission && !state.isBusy,
                 ) {
@@ -120,6 +126,33 @@ fun DebugOcrRoute(
             ScreenshotSection(screenshot = state.selectedScreenshot)
             OcrResultSection(state = state)
             MaskResultSection(state = state)
+            AnalysisResultSection(state = state)
+        }
+    }
+}
+
+@Composable
+private fun AnalysisResultSection(state: DebugOcrUiState) {
+    SectionTitle("LLM 분석 결과")
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        DebugValue(label = "실행 시간", value = state.analyzeDurationMillis?.let { "${it}ms" } ?: "-")
+        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+        val analysis = state.analysis
+        if (analysis == null) {
+            Text(
+                text = if (state.isAnalyzing) "분석 중..." else "분석 결과가 없습니다.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        } else {
+            DebugValue(label = "카테고리", value = analysis.category)
+            DebugValue(label = "제목", value = analysis.title)
+            DebugValue(label = "추천 액션", value = analysis.recommendedAction ?: "-")
+            DebugValue(label = "리마인더", value = analysis.reminderAt.formatMillis())
+            SectionTitle("요약")
+            Text(
+                text = analysis.summary.ifBlank { "-" },
+                style = MaterialTheme.typography.bodyMedium,
+            )
         }
     }
 }

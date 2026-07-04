@@ -9,6 +9,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.capturemate.app.CaptureMateApplication
+import com.capturemate.app.data.remote.dto.AnalyzeCaptureRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -37,6 +38,14 @@ data class OcrSampleResult(
     val hasMaskResult: Boolean = maskDurationMillis != null
 }
 
+data class AnalysisUi(
+    val title: String,
+    val summary: String,
+    val category: String,
+    val recommendedAction: String?,
+    val reminderAt: Long?,
+)
+
 data class DebugOcrUiState(
     val hasImagePermission: Boolean = false,
     val isBusy: Boolean = false,
@@ -47,6 +56,9 @@ data class DebugOcrUiState(
     val maskedText: String = "",
     val detectedSensitiveTypes: List<String> = emptyList(),
     val maskDurationMillis: Long? = null,
+    val isAnalyzing: Boolean = false,
+    val analyzeDurationMillis: Long? = null,
+    val analysis: AnalysisUi? = null,
     val sampleFiles: List<OcrSampleFile> = emptyList(),
     val sampleResults: List<OcrSampleResult> = emptyList(),
     val selectedSampleAssetPath: String? = null,
@@ -263,9 +275,80 @@ class DebugOcrViewModel(
                     maskedText = maskedValue,
                     detectedSensitiveTypes = detectedTypes,
                     maskDurationMillis = durationMillis,
+                    // 새로 마스킹하면 이전 LLM 분석 결과는 무효 -> 초기화
+                    analysis = null,
+                    analyzeDurationMillis = null,
                     statusMessage = "마스킹 완료: ${detectedTypes.size}개 타입 감지",
                     errorMessage = null,
                 )
+            }
+        }
+    }
+
+    /**
+     * 파이프라인 마지막 단계: 마스킹된 텍스트를 백엔드 /v1/analyze 로 보내 LLM 분석을 받는다.
+     * (OCR -> 마스킹 -> 여기서 서버 LLM 호출)
+     */
+    fun runAnalyzeOnCurrentMasked() {
+        val maskedText = uiState.value.maskedText
+        if (maskedText.isBlank()) {
+            updateState {
+                it.copy(
+                    statusMessage = "분석할 마스킹 텍스트가 없습니다",
+                    errorMessage = "먼저 마스킹을 실행하세요.",
+                )
+            }
+            return
+        }
+
+        viewModelScope.launch {
+            updateState {
+                it.copy(
+                    isBusy = true,
+                    isAnalyzing = true,
+                    errorMessage = null,
+                    statusMessage = "LLM 분석 요청 중",
+                )
+            }
+
+            var analysisUi: AnalysisUi? = null
+            val result = runCatching {
+                measureTimeMillis {
+                    val response = withContext(Dispatchers.IO) {
+                        appContainer.captureMateApi.analyzeCapture(
+                            AnalyzeCaptureRequest(maskedText = maskedText),
+                        )
+                    }
+                    analysisUi = AnalysisUi(
+                        title = response.title,
+                        summary = response.summary,
+                        category = response.category,
+                        recommendedAction = response.recommendedAction,
+                        reminderAt = response.reminderAt,
+                    )
+                }
+            }
+
+            result.onSuccess { durationMillis ->
+                updateState {
+                    it.copy(
+                        isBusy = false,
+                        isAnalyzing = false,
+                        analysis = analysisUi,
+                        analyzeDurationMillis = durationMillis,
+                        statusMessage = "LLM 분석 완료",
+                        errorMessage = null,
+                    )
+                }
+            }.onFailure { throwable ->
+                updateState {
+                    it.copy(
+                        isBusy = false,
+                        isAnalyzing = false,
+                        statusMessage = "LLM 분석 실패",
+                        errorMessage = throwable.message ?: throwable::class.java.simpleName,
+                    )
+                }
             }
         }
     }
