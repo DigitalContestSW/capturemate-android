@@ -28,10 +28,6 @@ class AppContainer(context: Context) {
         ).build()
     }
 
-    val captureRepository: CaptureRepository by lazy {
-        DefaultCaptureRepository(database.captureDao())
-    }
-
     val ocrTextExtractor: OcrTextExtractor by lazy {
         MlKitOcrTextExtractor(appContext)
     }
@@ -68,5 +64,14 @@ class AppContainer(context: Context) {
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
             .create(CaptureMateApi::class.java)
+    }
+
+    val captureRepository: CaptureRepository by lazy {
+        DefaultCaptureRepository(
+            captureDao = database.captureDao(),
+            studyItemDao = database.studyItemDao(),
+            captureMateApi = captureMateApi,
+            json = json,
+        )
     }
 }

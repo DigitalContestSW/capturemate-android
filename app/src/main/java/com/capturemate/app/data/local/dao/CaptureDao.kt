@@ -16,9 +16,15 @@ interface CaptureDao {
     @Query("SELECT * FROM memos ORDER BY createdAt DESC")
     fun observeMemos(): Flow<List<MemoEntity>>
 
+    @Query("SELECT * FROM memos WHERE id = :id LIMIT 1")
+    fun observeMemoById(id: String): Flow<MemoEntity?>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertCapture(capture: CaptureEntity)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertMemo(memo: MemoEntity)
+
+    @Query("DELETE FROM memos WHERE id = :id")
+    suspend fun deleteMemoById(id: String)
 }

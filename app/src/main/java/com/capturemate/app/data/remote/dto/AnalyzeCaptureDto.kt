@@ -1,6 +1,7 @@
 package com.capturemate.app.data.remote.dto
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 
 @Serializable
 data class AnalyzeCaptureRequest(
@@ -17,4 +18,11 @@ data class AnalyzeCaptureResponse(
     val category: String,
     val recommendedAction: String? = null,
     val reminderAt: Long? = null,
+    val categoryDetail: JsonElement? = null,
+)
+
+@Serializable
+data class StudyDetailDto(
+    val keyPoints: List<String>,
+    val recommendedReviewDays: Int = 3,
 )
