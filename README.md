@@ -35,6 +35,17 @@ capturemate-ai
 
 ## 로컬 설정
 
+### 권장 개발 환경
+
+이 프로젝트는 Android Gradle Plugin 9.2.1 기준으로 맞춥니다. Android Studio에서 Gradle Sync가 실패하면서 `Latest supported version is AGP 9.1.0` 같은 메시지가 보이면, 프로젝트 버전을 낮추기보다 Android Studio를 AGP 9.2.1을 지원하는 버전으로 업그레이드합니다.
+
+- Android Gradle Plugin: 9.2.1
+- Gradle Wrapper: 9.4.1
+- JDK: 17
+- compileSdk / targetSdk: 36
+- minSdk: 29
+- Android SDK Build Tools: 36.0.0
+
 `local.properties`는 각자 로컬 환경에 맞게 생성합니다. Android Studio로 프로젝트를 열면 보통 자동으로 생성됩니다.
 
 ```properties
@@ -69,10 +80,17 @@ py -m uvicorn app.main:app --reload --port 8001
 
 Android Studio에서 프로젝트를 열고 `app` 구성을 실행합니다.
 
-명령어로 테스트할 경우:
+macOS 또는 Linux에서 명령어로 빌드하거나 테스트할 경우:
 
 ```bash
-.\gradlew.bat testDebugUnitTest
+./gradlew app:assembleDebug
+./gradlew app:testDebugUnitTest
+```
+
+Windows에서 명령어로 테스트할 경우:
+
+```bash
+.\gradlew.bat app:testDebugUnitTest
 ```
 
 ## 데이터 처리 원칙
@@ -81,4 +99,3 @@ Android Studio에서 프로젝트를 열고 `app` 구성을 실행합니다.
 - 원본 OCR 텍스트는 로컬 Room DB에만 저장합니다.
 - 이메일, 전화번호, 계좌번호 같은 민감정보는 로컬에서 마스킹합니다.
 - AI 서버에는 마스킹된 텍스트만 보냅니다.
-
