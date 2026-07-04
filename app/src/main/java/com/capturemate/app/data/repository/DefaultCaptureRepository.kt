@@ -25,6 +25,9 @@ class DefaultCaptureRepository(
 
     override fun observeMemos(): Flow<List<MemoEntity>> = captureDao.observeMemos()
 
+    override fun observeMemoById(memoId: String): Flow<MemoEntity?> =
+        captureDao.observeMemoById(memoId)
+
     override fun observeStudyItem(memoId: String): Flow<StudyItemEntity?> =
         studyItemDao.observeByMemoId(memoId)
 

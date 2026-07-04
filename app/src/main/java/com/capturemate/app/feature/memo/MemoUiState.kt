@@ -1,0 +1,15 @@
+package com.capturemate.app.feature.memo
+
+import com.capturemate.app.data.local.entity.MemoEntity
+import com.capturemate.app.data.local.entity.StudyItemEntity
+
+data class MemoListUiState(
+    val memos: List<MemoEntity> = emptyList(),
+    val isLoading: Boolean = false,
+)
+
+data class MemoDetailUiState(
+    val memo: MemoEntity? = null,
+    val studyItem: StudyItemEntity? = null,
+    val isLoading: Boolean = false,
+)
