@@ -16,6 +16,7 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
+import java.util.concurrent.TimeUnit
 
 class AppContainer(context: Context) {
     private val appContext = context.applicationContext
@@ -58,6 +59,10 @@ class AppContainer(context: Context) {
 
         OkHttpClient.Builder()
             .addInterceptor(logging)
+            // 기본 10초는 LLM 2단계 + 재시도에 비해 너무 짧아 타임아웃이 난다. 넉넉히 늘림.
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(120, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
             .build()
     }
 
