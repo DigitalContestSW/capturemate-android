@@ -18,20 +18,27 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.capturemate.app.feature.home.HomeViewModel
+import com.capturemate.app.feature.home.HomeViewModelFactory
 import com.capturemate.app.feature.home.HomeRoute
+import com.capturemate.app.feature.home.LoginScreen
+import com.capturemate.app.feature.home.SettingsRoute
 import com.capturemate.app.feature.memo.MemoDetailRoute
 import com.capturemate.app.feature.memo.MemoListRoute
 import com.capturemate.app.ui.theme.CaptureMateTheme
 
-private enum class Tab { Home, MemoList }
+private enum class Tab { Home, MemoList, Settings }
 
 class MainActivity : ComponentActivity() {
 
@@ -48,10 +55,17 @@ class MainActivity : ComponentActivity() {
         pendingMemoIdFromNotification = intent.getStringExtra(EXTRA_MEMO_ID)
 
         val repository = (application as CaptureMateApplication).appContainer.captureRepository
+        val authRepository = (application as CaptureMateApplication).appContainer.authRepository
 
         setContent {
             CaptureMateTheme {
+                val context = LocalContext.current
+                val homeViewModel: HomeViewModel = viewModel(
+                    factory = HomeViewModelFactory(authRepository),
+                )
+                val homeUiState by homeViewModel.uiState.collectAsState()
                 var selectedMemoId by remember { mutableStateOf(pendingMemoIdFromNotification) }
+                val session = homeUiState.session
 
                 LaunchedEffect(pendingMemoIdFromNotification) {
                     pendingMemoIdFromNotification?.let { selectedMemoId = it }
@@ -59,7 +73,16 @@ class MainActivity : ComponentActivity() {
 
                 val memoId = selectedMemoId
 
-                if (memoId != null) {
+                if (!homeUiState.isSessionLoaded) {
+                    Box(modifier = Modifier.fillMaxWidth())
+                } else if (homeUiState.session == null) {
+                    LoginScreen(
+                        isLoading = homeUiState.isLoading,
+                        errorMessage = homeUiState.errorMessage,
+                        versionName = BuildConfig.VERSION_NAME,
+                        onGoogleClick = { homeViewModel.signIn(context) },
+                    )
+                } else if (memoId != null) {
                     BackHandler { selectedMemoId = null }
                     MemoDetailRoute(
                         memoId = memoId,
@@ -82,6 +105,9 @@ class MainActivity : ComponentActivity() {
                                 TextButton(onClick = { selectedTab = Tab.MemoList }) {
                                     Text(text = if (selectedTab == Tab.MemoList) "● 메모함" else "메모함")
                                 }
+                                TextButton(onClick = { selectedTab = Tab.Settings }) {
+                                    Text(text = if (selectedTab == Tab.Settings) "● 설정" else "설정")
+                                }
                             }
                         },
                     ) { innerPadding ->
@@ -91,6 +117,10 @@ class MainActivity : ComponentActivity() {
                                 Tab.MemoList -> MemoListRoute(
                                     repository = repository,
                                     onMemoClick = { selectedMemoId = it },
+                                )
+                                Tab.Settings -> SettingsRoute(
+                                    session = session,
+                                    onSignOut = { homeViewModel.signOut() },
                                 )
                             }
                         }
