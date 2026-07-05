@@ -13,7 +13,11 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             CaptureMateTheme {
-                HomeRoute()
+                HomeRoute(
+                    authRepository = (application as CaptureMateApplication)
+                        .appContainer
+                        .authRepository,
+                )
             }
         }
     }

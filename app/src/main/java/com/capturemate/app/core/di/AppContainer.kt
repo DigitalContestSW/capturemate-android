@@ -3,12 +3,16 @@ package com.capturemate.app.core.di
 import android.content.Context
 import androidx.room.Room
 import com.capturemate.app.BuildConfig
+import com.capturemate.app.core.auth.GoogleSignInClient
 import com.capturemate.app.core.ai.MlKitOcrTextExtractor
 import com.capturemate.app.core.ai.OcrTextExtractor
 import com.capturemate.app.core.privacy.SensitiveTextMasker
+import com.capturemate.app.data.local.AuthSessionStore
 import com.capturemate.app.data.local.CaptureMateDatabase
 import com.capturemate.app.data.remote.CaptureMateApi
+import com.capturemate.app.data.repository.DefaultAuthRepository
 import com.capturemate.app.data.repository.DefaultCaptureRepository
+import com.capturemate.app.domain.repository.AuthRepository
 import com.capturemate.app.domain.repository.CaptureRepository
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -38,6 +42,24 @@ class AppContainer(context: Context) {
 
     val sensitiveTextMasker: SensitiveTextMasker by lazy {
         SensitiveTextMasker()
+    }
+
+    val googleSignInClient: GoogleSignInClient by lazy {
+        GoogleSignInClient(
+            context = appContext,
+            serverClientId = BuildConfig.GOOGLE_WEB_CLIENT_ID,
+        )
+    }
+
+    private val authSessionStore: AuthSessionStore by lazy {
+        AuthSessionStore(appContext)
+    }
+
+    val authRepository: AuthRepository by lazy {
+        DefaultAuthRepository(
+            googleSignInClient = googleSignInClient,
+            sessionStore = authSessionStore,
+        )
     }
 
     private val json: Json by lazy {

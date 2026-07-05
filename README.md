@@ -39,9 +39,14 @@ capturemate-ai
 
 ```properties
 sdk.dir=로컬 Android SDK 경로
+GOOGLE_WEB_CLIENT_ID=Google Cloud Console에서 발급한 Web client ID
 ```
 
 `local.properties`는 커밋하지 않습니다.
+
+Google 로그인은 AndroidX Credential Manager를 사용합니다. `GOOGLE_WEB_CLIENT_ID`에는 Android OAuth client ID가 아니라 Google ID token 발급에 사용할 Web client ID를 넣습니다. 이 값은 Gradle property, 환경변수, `local.properties` 순서로 읽습니다.
+
+앱은 Google 로그인 결과를 직접 소비합니다. Google ID token과 사용자 기본 정보는 `EncryptedSharedPreferences`에 저장하고, 로그인 상태는 앱 내부 state로 관리합니다. 별도 인증 서버 없이 기기 안에서 로그인 상태를 유지하는 구조입니다.
 
 ## AI 서버 연동
 
@@ -76,4 +81,3 @@ Android Studio에서 프로젝트를 열고 `app` 구성을 실행합니다.
 - 원본 OCR 텍스트는 로컬 Room DB에만 저장합니다.
 - 이메일, 전화번호, 계좌번호 같은 민감정보는 로컬에서 마스킹합니다.
 - AI 서버에는 마스킹된 텍스트만 보냅니다.
-
