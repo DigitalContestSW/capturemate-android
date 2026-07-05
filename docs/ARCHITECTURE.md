@@ -44,6 +44,19 @@ app/src/main/java/com/capturemate/app
 6. 서버 분석 결과를 메모/액션 후보로 저장
 7. 일정, 알림, 지도 등 실행 기능으로 연결
 
+## 인증 흐름
+
+1. 사용자가 첫 화면에서 Google 로그인을 선택
+2. 앱이 AndroidX Credential Manager로 Google ID token을 받음
+3. 앱이 ID token과 사용자 기본 정보를 로컬 세션으로 변환
+4. 토큰과 사용자 기본 정보는 `EncryptedSharedPreferences`에 저장
+5. 홈 화면은 저장된 로컬 세션을 구독해 로그인 상태를 표시
+6. 로그아웃 시 Google Credential 상태와 로컬 세션을 함께 삭제
+
+Google Credential Manager는 현재 Google refresh token을 앱에 직접 제공하지 않는다.
+따라서 Google 로그인은 ID token 중심으로 저장하고, 카카오 등 다른 provider가 access token
+또는 refresh token을 제공하면 같은 `AuthSession` 모델의 provider token 필드에 저장한다.
+
 ## 공통 기술 선택
 
 - UI: Jetpack Compose
