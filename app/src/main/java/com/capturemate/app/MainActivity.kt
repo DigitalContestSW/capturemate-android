@@ -5,11 +5,17 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
-import com.capturemate.app.feature.home.HomeRoute
+import com.capturemate.app.feature.memo.MemoDetailRoute
+import com.capturemate.app.feature.memo.MemoListRoute
 import com.capturemate.app.ui.theme.CaptureMateTheme
 
 class MainActivity : ComponentActivity() {
@@ -22,9 +28,26 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         requestNotificationPermissionIfNeeded()
+
+        val repository = (application as CaptureMateApplication).appContainer.captureRepository
+
         setContent {
             CaptureMateTheme {
-                HomeRoute()
+                var selectedMemoId by remember { mutableStateOf<String?>(null) }
+                val memoId = selectedMemoId
+
+                if (memoId == null) {
+                    MemoListRoute(
+                        repository = repository,
+                        onMemoClick = { selectedMemoId = it },
+                    )
+                } else {
+                    BackHandler { selectedMemoId = null }
+                    MemoDetailRoute(
+                        memoId = memoId,
+                        repository = repository,
+                    )
+                }
             }
         }
     }

@@ -70,6 +70,7 @@ class AppContainer(context: Context) {
         DefaultCaptureRepository(
             captureDao = database.captureDao(),
             studyItemDao = database.studyItemDao(),
+            lifeInfoItemDao = database.lifeInfoItemDao(),
             captureMateApi = captureMateApi,
             json = json,
             appContext = appContext,

@@ -26,3 +26,11 @@ data class StudyDetailDto(
     val keyPoints: List<String>,
     val recommendedReviewDays: Int = 3,
 )
+
+@Serializable
+data class LifeInfoDetailDto(
+    val benefit: String,
+    val target: String,
+    val applicationMethod: String,
+    val deadline: Long,
+)

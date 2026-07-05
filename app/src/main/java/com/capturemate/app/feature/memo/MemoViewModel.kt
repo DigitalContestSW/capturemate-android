@@ -30,17 +30,36 @@ class MemoViewModel(
 
     fun loadMemoDetail(memoId: String) {
         viewModelScope.launch {
-            repository.observeMemoById(memoId)
-                .combine(repository.observeStudyItem(memoId)) { memo, studyItem ->
-                    MemoDetailUiState(memo = memo, studyItem = studyItem, isLoading = false)
-                }
-                .collect { _detailState.value = it }
+            combine(
+                repository.observeMemoById(memoId),
+                repository.observeStudyItem(memoId),
+                repository.observeLifeInfoItem(memoId),
+            ) { memo, studyItem, lifeInfoItem ->
+                MemoDetailUiState(
+                    memo = memo,
+                    studyItem = studyItem,
+                    lifeInfoItem = lifeInfoItem,
+                    isLoading = false,
+                )
+            }.collect { _detailState.value = it }
         }
     }
 
     fun selectReviewDays(memoId: String, days: Int) {
         viewModelScope.launch {
             repository.updateStudyReviewDays(memoId, days)
+        }
+    }
+
+    fun toggleDeadlineReminder(memoId: String, enabled: Boolean) {
+        viewModelScope.launch {
+            repository.setDeadlineReminderEnabled(memoId, enabled)
+        }
+    }
+
+    fun setCustomReminderDate(memoId: String, at: Long?) {
+        viewModelScope.launch {
+            repository.setCustomReminderAt(memoId, at)
         }
     }
 
