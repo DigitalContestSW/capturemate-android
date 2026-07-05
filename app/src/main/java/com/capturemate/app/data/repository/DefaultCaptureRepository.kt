@@ -14,6 +14,7 @@ import com.capturemate.app.data.remote.dto.AnalyzeCaptureRequest
 import com.capturemate.app.data.remote.dto.LifeInfoDetailDto
 import com.capturemate.app.data.remote.dto.StudyDetailDto
 import com.capturemate.app.domain.model.CaptureCategory
+import com.capturemate.app.domain.model.MemoStatus
 import com.capturemate.app.domain.repository.CaptureRepository
 import java.util.UUID
 import java.util.concurrent.TimeUnit
@@ -33,6 +34,8 @@ class DefaultCaptureRepository(
     override fun observeCaptures(): Flow<List<CaptureEntity>> = captureDao.observeCaptures()
 
     override fun observeMemos(): Flow<List<MemoEntity>> = captureDao.observeMemos()
+
+    override fun observePendingMemos(): Flow<List<MemoEntity>> = captureDao.observePendingMemos()
 
     override fun observeMemoById(memoId: String): Flow<MemoEntity?> =
         captureDao.observeMemoById(memoId)
@@ -55,6 +58,7 @@ class DefaultCaptureRepository(
             category = response.category,
             recommendedAction = response.recommendedAction,
             reminderAt = response.reminderAt,
+            status = MemoStatus.Pending.name,
             createdAt = now,
             updatedAt = now,
         )
@@ -74,7 +78,6 @@ class DefaultCaptureRepository(
                             createdAt = now,
                         ),
                     )
-                    scheduleStudyReminder(memo, studyDetail.recommendedReviewDays)
                 }
 
                 CaptureCategory.LifeInfo.name -> {
@@ -97,6 +100,16 @@ class DefaultCaptureRepository(
         }
 
         return memo
+    }
+
+    override suspend fun confirmMemo(memoId: String) {
+        captureDao.updateMemoStatus(memoId, MemoStatus.Saved.name)
+
+        val memo = captureDao.observeMemoById(memoId).first() ?: return
+        val studyItem = studyItemDao.observeByMemoId(memoId).first()
+        if (studyItem != null) {
+            scheduleStudyReminder(memo, studyItem.selectedReviewDays)
+        }
     }
 
     override suspend fun deleteMemo(memoId: String) {
@@ -129,6 +142,7 @@ class DefaultCaptureRepository(
         NotificationScheduler.scheduleReminder(
             context = appContext,
             workName = workName,
+            memoId = memo.id,
             title = "마감이 3일 남았어요",
             body = memo.title,
             triggerAtMillis = triggerAtMillis,
@@ -148,6 +162,7 @@ class DefaultCaptureRepository(
         NotificationScheduler.scheduleReminder(
             context = appContext,
             workName = workName,
+            memoId = memo.id,
             title = "리마인드 알림",
             body = memo.title,
             triggerAtMillis = at,
@@ -159,6 +174,7 @@ class DefaultCaptureRepository(
         NotificationScheduler.scheduleReminder(
             context = appContext,
             workName = studyReminderWorkName(memo.id),
+            memoId = memo.id,
             title = "복습할 시간이에요",
             body = memo.title,
             triggerAtMillis = triggerAtMillis,

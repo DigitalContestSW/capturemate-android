@@ -13,6 +13,7 @@ data class MemoEntity(
     val category: String,
     val recommendedAction: String?,
     val reminderAt: Long?,
+    val status: String,
     val createdAt: Long,
     val updatedAt: Long,
 )

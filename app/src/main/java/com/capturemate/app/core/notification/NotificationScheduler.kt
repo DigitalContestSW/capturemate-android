@@ -25,6 +25,7 @@ object NotificationScheduler {
     fun scheduleReminder(
         context: Context,
         workName: String,
+        memoId: String,
         title: String,
         body: String,
         triggerAtMillis: Long,
@@ -35,6 +36,7 @@ object NotificationScheduler {
             .setInitialDelay(delayMillis, TimeUnit.MILLISECONDS)
             .setInputData(
                 workDataOf(
+                    ReminderWorker.KEY_MEMO_ID to memoId,
                     ReminderWorker.KEY_TITLE to title,
                     ReminderWorker.KEY_BODY to body,
                 ),

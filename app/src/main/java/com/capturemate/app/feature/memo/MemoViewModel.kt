@@ -17,6 +17,9 @@ class MemoViewModel(
     private val _listState = MutableStateFlow(MemoListUiState(isLoading = true))
     val listState: StateFlow<MemoListUiState> = _listState.asStateFlow()
 
+    private val _pendingListState = MutableStateFlow(MemoListUiState(isLoading = true))
+    val pendingListState: StateFlow<MemoListUiState> = _pendingListState.asStateFlow()
+
     private val _detailState = MutableStateFlow(MemoDetailUiState(isLoading = true))
     val detailState: StateFlow<MemoDetailUiState> = _detailState.asStateFlow()
 
@@ -24,6 +27,11 @@ class MemoViewModel(
         viewModelScope.launch {
             repository.observeMemos().collect { memos ->
                 _listState.value = MemoListUiState(memos = memos, isLoading = false)
+            }
+        }
+        viewModelScope.launch {
+            repository.observePendingMemos().collect { memos ->
+                _pendingListState.value = MemoListUiState(memos = memos, isLoading = false)
             }
         }
     }
@@ -66,6 +74,12 @@ class MemoViewModel(
     fun deleteMemo(memoId: String) {
         viewModelScope.launch {
             repository.deleteMemo(memoId)
+        }
+    }
+
+    fun confirmMemo(memoId: String) {
+        viewModelScope.launch {
+            repository.confirmMemo(memoId)
         }
     }
 
