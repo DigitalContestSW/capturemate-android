@@ -69,4 +69,19 @@ class AppContainer(context: Context) {
             .build()
             .create(CaptureMateApi::class.java)
     }
+<<<<<<< Updated upstream
+=======
+
+    val captureRepository: CaptureRepository by lazy {
+        DefaultCaptureRepository(
+            captureDao = database.captureDao(),
+            studyItemDao = database.studyItemDao(),
+            lifeInfoItemDao = database.lifeInfoItemDao(),
+            restaurantMemoDao = database.restaurantMemoDao(),
+            captureMateApi = captureMateApi,
+            json = json,
+            appContext = appContext,
+        )
+    }
+>>>>>>> Stashed changes
 }
