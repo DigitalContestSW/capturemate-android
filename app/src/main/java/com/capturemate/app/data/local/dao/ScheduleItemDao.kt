@@ -18,6 +18,20 @@ interface ScheduleItemDao {
     @Query("UPDATE schedule_items SET customReminderAt = :at WHERE memoId = :memoId")
     suspend fun updateCustomReminderAt(memoId: String, at: Long?)
 
+    @Query(
+        """
+        UPDATE schedule_items
+        SET googleCalendarEventId = :eventId,
+            googleCalendarHtmlLink = :htmlLink
+        WHERE memoId = :memoId
+        """,
+    )
+    suspend fun updateGoogleCalendarEvent(
+        memoId: String,
+        eventId: String?,
+        htmlLink: String?,
+    )
+
     @Query("DELETE FROM schedule_items WHERE memoId = :memoId")
     suspend fun deleteByMemoId(memoId: String)
 }

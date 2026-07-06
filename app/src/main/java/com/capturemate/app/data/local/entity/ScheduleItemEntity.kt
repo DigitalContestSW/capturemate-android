@@ -13,5 +13,7 @@ data class ScheduleItemEntity(
     val location: String?,
     val screenshotUris: List<String>,
     val customReminderAt: Long?,
+    val googleCalendarEventId: String?,
+    val googleCalendarHtmlLink: String?,
     val createdAt: Long,
 )

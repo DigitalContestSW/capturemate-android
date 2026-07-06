@@ -1,7 +1,11 @@
 package com.capturemate.app.feature.memo
 
+import android.app.Activity
 import android.graphics.BitmapFactory
 import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
@@ -58,9 +62,37 @@ fun MemoDetailRoute(
     viewModel: MemoViewModel = viewModel(factory = MemoViewModel.Factory(repository)),
 ) {
     val state by viewModel.detailState.collectAsState()
+    val context = LocalContext.current
+    var pendingGoogleCalendarMemoId by remember { mutableStateOf<String?>(null) }
+    val googleCalendarAuthorizationLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult(),
+    ) { result ->
+        val memoId = pendingGoogleCalendarMemoId
+        pendingGoogleCalendarMemoId = null
+        if (memoId != null) {
+            viewModel.finishAddScheduleToGoogleCalendar(
+                context = context,
+                memoId = memoId,
+                data = if (result.resultCode == Activity.RESULT_OK) result.data else null,
+            )
+        }
+    }
 
     LaunchedEffect(memoId) {
         viewModel.loadMemoDetail(memoId)
+    }
+
+    LaunchedEffect(viewModel) {
+        viewModel.calendarEvents.collect { event ->
+            when (event) {
+                is GoogleCalendarUiEvent.RequestConsent -> {
+                    pendingGoogleCalendarMemoId = memoId
+                    googleCalendarAuthorizationLauncher.launch(
+                        IntentSenderRequest.Builder(event.pendingIntent).build(),
+                    )
+                }
+            }
+        }
     }
 
     Scaffold { innerPadding ->
@@ -122,6 +154,11 @@ fun MemoDetailRoute(
                 state.scheduleItem?.let { scheduleItem ->
                     ScheduleSection(
                         scheduleItem = scheduleItem,
+                        isAddingToGoogleCalendar = state.isAddingToGoogleCalendar,
+                        googleCalendarMessage = state.googleCalendarMessage,
+                        onAddToGoogleCalendar = {
+                            viewModel.addScheduleToGoogleCalendar(context, memo.id)
+                        },
                         onSetCustomReminderDate = { at ->
                             viewModel.setScheduleCustomReminderDate(memo.id, at)
                         },
@@ -266,6 +303,9 @@ private fun formatDeadline(epochMillis: Long): String {
 @Composable
 private fun ScheduleSection(
     scheduleItem: ScheduleItemEntity,
+    isAddingToGoogleCalendar: Boolean,
+    googleCalendarMessage: String?,
+    onAddToGoogleCalendar: () -> Unit,
     onSetCustomReminderDate: (Long?) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -294,10 +334,21 @@ private fun ScheduleSection(
                 }
 
                 Button(
-                    onClick = { },
+                    onClick = onAddToGoogleCalendar,
+                    enabled = !isAddingToGoogleCalendar && scheduleItem.googleCalendarEventId == null,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(text = "구글 캘린더에 추가")
+                    Text(
+                        text = when {
+                            scheduleItem.googleCalendarEventId != null -> "이미 추가됨"
+                            isAddingToGoogleCalendar -> "추가 중..."
+                            else -> "구글 캘린더에 추가"
+                        },
+                    )
+                }
+
+                googleCalendarMessage?.let { message ->
+                    Text(text = message, style = MaterialTheme.typography.bodyMedium)
                 }
             }
         }

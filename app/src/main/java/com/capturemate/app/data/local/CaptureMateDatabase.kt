@@ -23,7 +23,7 @@ import com.capturemate.app.data.local.entity.StudyItemEntity
         LifeInfoItemEntity::class,
         ScheduleItemEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -47,11 +47,20 @@ abstract class CaptureMateDatabase : RoomDatabase() {
                         `location` TEXT,
                         `screenshotUris` TEXT NOT NULL,
                         `customReminderAt` INTEGER,
+                        `googleCalendarEventId` TEXT,
+                        `googleCalendarHtmlLink` TEXT,
                         `createdAt` INTEGER NOT NULL,
                         PRIMARY KEY(`id`)
                     )
                     """.trimIndent(),
                 )
+            }
+        }
+
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `schedule_items` ADD COLUMN `googleCalendarEventId` TEXT")
+                db.execSQL("ALTER TABLE `schedule_items` ADD COLUMN `googleCalendarHtmlLink` TEXT")
             }
         }
     }

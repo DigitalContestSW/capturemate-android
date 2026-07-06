@@ -1,13 +1,20 @@
 package com.capturemate.app.feature.memo
 
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.capturemate.app.domain.repository.AddToGoogleCalendarResult
 import com.capturemate.app.domain.repository.CaptureRepository
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class MemoViewModel(
@@ -22,6 +29,9 @@ class MemoViewModel(
 
     private val _detailState = MutableStateFlow(MemoDetailUiState(isLoading = true))
     val detailState: StateFlow<MemoDetailUiState> = _detailState.asStateFlow()
+
+    private val _calendarEvents = MutableSharedFlow<GoogleCalendarUiEvent>()
+    val calendarEvents: SharedFlow<GoogleCalendarUiEvent> = _calendarEvents
 
     init {
         viewModelScope.launch {
@@ -79,6 +89,64 @@ class MemoViewModel(
         }
     }
 
+    fun addScheduleToGoogleCalendar(context: Context, memoId: String) {
+        viewModelScope.launch {
+            _detailState.update {
+                it.copy(isAddingToGoogleCalendar = true, googleCalendarMessage = null)
+            }
+            runCatching {
+                repository.addScheduleToGoogleCalendar(context, memoId)
+            }.onSuccess { result ->
+                handleGoogleCalendarResult(result)
+            }.onFailure { throwable ->
+                _detailState.update {
+                    it.copy(
+                        isAddingToGoogleCalendar = false,
+                        googleCalendarMessage = throwable.toGoogleCalendarMessage(),
+                    )
+                }
+            }
+        }
+    }
+
+    fun finishAddScheduleToGoogleCalendar(context: Context, memoId: String, data: Intent?) {
+        viewModelScope.launch {
+            _detailState.update {
+                it.copy(isAddingToGoogleCalendar = true, googleCalendarMessage = null)
+            }
+            runCatching {
+                repository.finishAddScheduleToGoogleCalendar(context, memoId, data)
+            }.onSuccess { result ->
+                handleGoogleCalendarResult(result)
+            }.onFailure { throwable ->
+                _detailState.update {
+                    it.copy(
+                        isAddingToGoogleCalendar = false,
+                        googleCalendarMessage = throwable.toGoogleCalendarMessage(),
+                    )
+                }
+            }
+        }
+    }
+
+    private suspend fun handleGoogleCalendarResult(result: AddToGoogleCalendarResult) {
+        when (result) {
+            is AddToGoogleCalendarResult.Added -> {
+                _detailState.update {
+                    it.copy(
+                        isAddingToGoogleCalendar = false,
+                        googleCalendarMessage = "구글 캘린더에 추가했어요.",
+                    )
+                }
+            }
+
+            is AddToGoogleCalendarResult.NeedsUserConsent -> {
+                _detailState.update { it.copy(isAddingToGoogleCalendar = false) }
+                _calendarEvents.emit(GoogleCalendarUiEvent.RequestConsent(result.pendingIntent))
+            }
+        }
+    }
+
     fun deleteMemo(memoId: String) {
         viewModelScope.launch {
             repository.deleteMemo(memoId)
@@ -100,3 +168,10 @@ class MemoViewModel(
         }
     }
 }
+
+sealed interface GoogleCalendarUiEvent {
+    data class RequestConsent(val pendingIntent: PendingIntent) : GoogleCalendarUiEvent
+}
+
+private fun Throwable.toGoogleCalendarMessage(): String =
+    message?.takeIf { it.isNotBlank() } ?: "구글 캘린더에 추가하지 못했습니다."

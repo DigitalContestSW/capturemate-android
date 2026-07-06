@@ -16,4 +16,6 @@ data class MemoDetailUiState(
     val lifeInfoItem: LifeInfoItemEntity? = null,
     val scheduleItem: ScheduleItemEntity? = null,
     val isLoading: Boolean = false,
+    val isAddingToGoogleCalendar: Boolean = false,
+    val googleCalendarMessage: String? = null,
 )

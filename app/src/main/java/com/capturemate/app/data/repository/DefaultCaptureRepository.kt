@@ -1,7 +1,11 @@
 package com.capturemate.app.data.repository
 
 import android.content.Context
+import android.content.Intent
 import com.capturemate.app.core.notification.NotificationScheduler
+import com.capturemate.app.core.calendar.CalendarAuthorizationResult
+import com.capturemate.app.core.calendar.GoogleCalendarClient
+import com.capturemate.app.core.calendar.GoogleCalendarEvent
 import com.capturemate.app.data.local.dao.CaptureDao
 import com.capturemate.app.data.local.dao.LifeInfoItemDao
 import com.capturemate.app.data.local.dao.ScheduleItemDao
@@ -18,7 +22,11 @@ import com.capturemate.app.data.remote.dto.ScheduleDetailDto
 import com.capturemate.app.data.remote.dto.StudyDetailDto
 import com.capturemate.app.domain.model.CaptureCategory
 import com.capturemate.app.domain.model.MemoStatus
+import com.capturemate.app.domain.repository.AddToGoogleCalendarResult
 import com.capturemate.app.domain.repository.CaptureRepository
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.flow.Flow
@@ -31,6 +39,7 @@ class DefaultCaptureRepository(
     private val studyItemDao: StudyItemDao,
     private val lifeInfoItemDao: LifeInfoItemDao,
     private val scheduleItemDao: ScheduleItemDao,
+    private val googleCalendarClient: GoogleCalendarClient,
     private val captureMateApi: CaptureMateApi,
     private val json: Json,
     private val appContext: Context,
@@ -116,6 +125,8 @@ class DefaultCaptureRepository(
                             location = scheduleDetail.location,
                             screenshotUris = scheduleDetail.screenshotUris,
                             customReminderAt = null,
+                            googleCalendarEventId = null,
+                            googleCalendarHtmlLink = null,
                             createdAt = now,
                         ),
                     )
@@ -212,6 +223,74 @@ class DefaultCaptureRepository(
             title = "일정 리마인드",
             body = memo.title,
             triggerAtMillis = at,
+        )
+    }
+
+    override suspend fun addScheduleToGoogleCalendar(
+        context: Context,
+        memoId: String,
+    ): AddToGoogleCalendarResult {
+        return when (val authorization = googleCalendarClient.requestAccessToken(context)) {
+            is CalendarAuthorizationResult.Authorized -> {
+                insertScheduleEvent(memoId, authorization.accessToken)
+            }
+
+            is CalendarAuthorizationResult.NeedsUserConsent -> {
+                AddToGoogleCalendarResult.NeedsUserConsent(authorization.pendingIntent)
+            }
+        }
+    }
+
+    override suspend fun finishAddScheduleToGoogleCalendar(
+        context: Context,
+        memoId: String,
+        data: Intent?,
+    ): AddToGoogleCalendarResult {
+        val accessToken = googleCalendarClient.readAccessTokenFromConsentResult(context, data)
+        return insertScheduleEvent(memoId, accessToken)
+    }
+
+    private suspend fun insertScheduleEvent(
+        memoId: String,
+        accessToken: String,
+    ): AddToGoogleCalendarResult {
+        val memo = captureDao.observeMemoById(memoId).first()
+            ?: error("Memo was not found.")
+        val scheduleItem = scheduleItemDao.observeByMemoId(memoId).first()
+            ?: error("Schedule detail was not found.")
+        if (scheduleItem.googleCalendarEventId != null) {
+            return AddToGoogleCalendarResult.Added(
+                eventId = scheduleItem.googleCalendarEventId,
+                htmlLink = scheduleItem.googleCalendarHtmlLink,
+            )
+        }
+
+        val event = scheduleItem.toGoogleCalendarEvent(description = memo.summary)
+        val result = googleCalendarClient.insertEvent(accessToken, event)
+        scheduleItemDao.updateGoogleCalendarEvent(
+            memoId = memoId,
+            eventId = result.eventId,
+            htmlLink = result.htmlLink,
+        )
+        return AddToGoogleCalendarResult.Added(
+            eventId = result.eventId,
+            htmlLink = result.htmlLink,
+        )
+    }
+
+    private fun ScheduleItemEntity.toGoogleCalendarEvent(description: String): GoogleCalendarEvent {
+        val deadlineAt = deadlineAt ?: error("Schedule deadline was not found.")
+        val zoneId = ZoneId.of("Asia/Seoul")
+        val end = Instant.ofEpochMilli(deadlineAt).atZone(zoneId)
+        val start = end.minusMinutes(30)
+
+        return GoogleCalendarEvent(
+            title = eventTitle,
+            description = description,
+            location = location,
+            startDateTime = DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(start),
+            endDateTime = DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(end),
+            timeZone = zoneId.id,
         )
     }
 
