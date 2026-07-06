@@ -1,21 +1,14 @@
-﻿package com.capturemate.app.data.repository
+package com.capturemate.app.data.repository
 
+import android.content.Context
+import com.capturemate.app.core.notification.NotificationScheduler
 import com.capturemate.app.data.local.dao.CaptureDao
-<<<<<<< Updated upstream
-=======
 import com.capturemate.app.data.local.dao.LifeInfoItemDao
 import com.capturemate.app.data.local.dao.RestaurantMemoDao
 import com.capturemate.app.data.local.dao.StudyItemDao
->>>>>>> Stashed changes
 import com.capturemate.app.data.local.entity.CaptureEntity
+import com.capturemate.app.data.local.entity.LifeInfoItemEntity
 import com.capturemate.app.data.local.entity.MemoEntity
-<<<<<<< Updated upstream
-import com.capturemate.app.domain.repository.CaptureRepository
-import kotlinx.coroutines.flow.Flow
-
-class DefaultCaptureRepository(
-    private val captureDao: CaptureDao,
-=======
 import com.capturemate.app.data.local.entity.RestaurantFeatureEntity
 import com.capturemate.app.data.local.entity.RestaurantGroupEntity
 import com.capturemate.app.data.local.entity.RestaurantGroupMemberEntity
@@ -55,13 +48,10 @@ class DefaultCaptureRepository(
     private val captureMateApi: CaptureMateApi,
     private val json: Json,
     private val appContext: Context,
->>>>>>> Stashed changes
 ) : CaptureRepository {
     override fun observeCaptures(): Flow<List<CaptureEntity>> = captureDao.observeCaptures()
 
     override fun observeMemos(): Flow<List<MemoEntity>> = captureDao.observeMemos()
-<<<<<<< Updated upstream
-=======
 
     override fun observePendingMemos(): Flow<List<MemoEntity>> = captureDao.observePendingMemos()
 
@@ -167,7 +157,7 @@ class DefaultCaptureRepository(
             }
         }
 
-        if (response.category.equals("restaurant", ignoreCase = true)) {
+        if (response.category.equals(CaptureCategory.Restaurant.name, ignoreCase = true)) {
             val restaurantDetail = response.categoryDetail ?: response.details
             val detail = if (restaurantDetail != null) {
                 json.decodeFromJsonElement<RestaurantAnalysisDto>(restaurantDetail)
@@ -230,7 +220,7 @@ class DefaultCaptureRepository(
             context = appContext,
             workName = workName,
             memoId = memo.id,
-            title = "복습할 시간이에요",
+            title = "마감이 3일 남았어요",
             body = memo.title,
             triggerAtMillis = triggerAtMillis,
         )
@@ -250,7 +240,7 @@ class DefaultCaptureRepository(
             context = appContext,
             workName = workName,
             memoId = memo.id,
-            title = "복습할 시간이에요",
+            title = "리마인드 알림",
             body = memo.title,
             triggerAtMillis = at,
         )
@@ -375,7 +365,8 @@ class DefaultCaptureRepository(
         if (value.isNullOrBlank()) return null
         return value.split(" ")
             .firstOrNull { token ->
-                token.endsWith("동") || token.endsWith("가") || token.endsWith("읍") || token.endsWith("면") || token.endsWith("리")
+                token.endsWith("동") || token.endsWith("가") || token.endsWith("읍") ||
+                    token.endsWith("면") || token.endsWith("리")
             }
     }
 
@@ -389,5 +380,4 @@ class DefaultCaptureRepository(
     private fun studyReminderWorkName(memoId: String) = "study_reminder_$memoId"
     private fun lifeInfoDeadlineReminderWorkName(memoId: String) = "lifeinfo_deadline_reminder_$memoId"
     private fun lifeInfoCustomReminderWorkName(memoId: String) = "lifeinfo_custom_reminder_$memoId"
->>>>>>> Stashed changes
 }
