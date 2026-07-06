@@ -9,6 +9,7 @@ import com.capturemate.app.core.ai.OcrTextExtractor
 import com.capturemate.app.core.privacy.SensitiveTextMasker
 import com.capturemate.app.data.local.AuthSessionStore
 import com.capturemate.app.data.local.CaptureMateDatabase
+import com.capturemate.app.data.local.CaptureMateDatabase.Companion.MIGRATION_1_2
 import com.capturemate.app.data.remote.CaptureMateApi
 import com.capturemate.app.data.repository.DefaultAuthRepository
 import com.capturemate.app.data.repository.DefaultCaptureRepository
@@ -25,11 +26,19 @@ class AppContainer(context: Context) {
     private val appContext = context.applicationContext
 
     val database: CaptureMateDatabase by lazy {
-        Room.databaseBuilder(
+        val builder = Room.databaseBuilder(
             appContext,
             CaptureMateDatabase::class.java,
             "capturemate.db",
-        ).build()
+        ).addMigrations(MIGRATION_1_2)
+
+        if (BuildConfig.DEBUG) {
+            builder
+                .fallbackToDestructiveMigration(dropAllTables = true)
+                .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
+        }
+
+        builder.build()
     }
 
     val ocrTextExtractor: OcrTextExtractor by lazy {
@@ -93,6 +102,7 @@ class AppContainer(context: Context) {
             captureDao = database.captureDao(),
             studyItemDao = database.studyItemDao(),
             lifeInfoItemDao = database.lifeInfoItemDao(),
+            scheduleItemDao = database.scheduleItemDao(),
             captureMateApi = captureMateApi,
             json = json,
             appContext = appContext,

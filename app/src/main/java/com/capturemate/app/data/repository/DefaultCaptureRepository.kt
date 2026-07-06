@@ -4,14 +4,17 @@ import android.content.Context
 import com.capturemate.app.core.notification.NotificationScheduler
 import com.capturemate.app.data.local.dao.CaptureDao
 import com.capturemate.app.data.local.dao.LifeInfoItemDao
+import com.capturemate.app.data.local.dao.ScheduleItemDao
 import com.capturemate.app.data.local.dao.StudyItemDao
 import com.capturemate.app.data.local.entity.CaptureEntity
 import com.capturemate.app.data.local.entity.LifeInfoItemEntity
 import com.capturemate.app.data.local.entity.MemoEntity
+import com.capturemate.app.data.local.entity.ScheduleItemEntity
 import com.capturemate.app.data.local.entity.StudyItemEntity
 import com.capturemate.app.data.remote.CaptureMateApi
 import com.capturemate.app.data.remote.dto.AnalyzeCaptureRequest
 import com.capturemate.app.data.remote.dto.LifeInfoDetailDto
+import com.capturemate.app.data.remote.dto.ScheduleDetailDto
 import com.capturemate.app.data.remote.dto.StudyDetailDto
 import com.capturemate.app.domain.model.CaptureCategory
 import com.capturemate.app.domain.model.MemoStatus
@@ -27,6 +30,7 @@ class DefaultCaptureRepository(
     private val captureDao: CaptureDao,
     private val studyItemDao: StudyItemDao,
     private val lifeInfoItemDao: LifeInfoItemDao,
+    private val scheduleItemDao: ScheduleItemDao,
     private val captureMateApi: CaptureMateApi,
     private val json: Json,
     private val appContext: Context,
@@ -45,6 +49,9 @@ class DefaultCaptureRepository(
 
     override fun observeLifeInfoItem(memoId: String): Flow<LifeInfoItemEntity?> =
         lifeInfoItemDao.observeByMemoId(memoId)
+
+    override fun observeScheduleItem(memoId: String): Flow<ScheduleItemEntity?> =
+        scheduleItemDao.observeByMemoId(memoId)
 
     override suspend fun analyzeAndCreateMemo(captureId: String, maskedText: String): MemoEntity {
         val response = captureMateApi.analyzeCapture(AnalyzeCaptureRequest(maskedText = maskedText))
@@ -96,6 +103,23 @@ class DefaultCaptureRepository(
                         ),
                     )
                 }
+
+                CaptureCategory.Schedule.name -> {
+                    val scheduleDetail = json.decodeFromJsonElement<ScheduleDetailDto>(categoryDetail)
+                    scheduleItemDao.upsert(
+                        ScheduleItemEntity(
+                            id = UUID.randomUUID().toString(),
+                            memoId = memo.id,
+                            eventTitle = scheduleDetail.eventTitle ?: memo.title,
+                            deadlineAt = scheduleDetail.deadlineAt ?: memo.reminderAt,
+                            eventDateText = scheduleDetail.eventDateText,
+                            location = scheduleDetail.location,
+                            screenshotUris = scheduleDetail.screenshotUris,
+                            customReminderAt = null,
+                            createdAt = now,
+                        ),
+                    )
+                }
             }
         }
 
@@ -116,9 +140,11 @@ class DefaultCaptureRepository(
         captureDao.deleteMemoById(memoId)
         studyItemDao.deleteByMemoId(memoId)
         lifeInfoItemDao.deleteByMemoId(memoId)
+        scheduleItemDao.deleteByMemoId(memoId)
         NotificationScheduler.cancelReminder(appContext, studyReminderWorkName(memoId))
         NotificationScheduler.cancelReminder(appContext, lifeInfoDeadlineReminderWorkName(memoId))
         NotificationScheduler.cancelReminder(appContext, lifeInfoCustomReminderWorkName(memoId))
+        NotificationScheduler.cancelReminder(appContext, scheduleCustomReminderWorkName(memoId))
     }
 
     override suspend fun updateStudyReviewDays(memoId: String, days: Int) {
@@ -169,6 +195,26 @@ class DefaultCaptureRepository(
         )
     }
 
+    override suspend fun setScheduleCustomReminderAt(memoId: String, at: Long?) {
+        scheduleItemDao.updateCustomReminderAt(memoId, at)
+
+        val workName = scheduleCustomReminderWorkName(memoId)
+        if (at == null) {
+            NotificationScheduler.cancelReminder(appContext, workName)
+            return
+        }
+
+        val memo = captureDao.observeMemoById(memoId).first() ?: return
+        NotificationScheduler.scheduleReminder(
+            context = appContext,
+            workName = workName,
+            memoId = memo.id,
+            title = "일정 리마인드",
+            body = memo.title,
+            triggerAtMillis = at,
+        )
+    }
+
     private fun scheduleStudyReminder(memo: MemoEntity, reviewDays: Int) {
         val triggerAtMillis = System.currentTimeMillis() + TimeUnit.DAYS.toMillis(reviewDays.toLong())
         NotificationScheduler.scheduleReminder(
@@ -184,4 +230,5 @@ class DefaultCaptureRepository(
     private fun studyReminderWorkName(memoId: String) = "study_reminder_$memoId"
     private fun lifeInfoDeadlineReminderWorkName(memoId: String) = "lifeinfo_deadline_reminder_$memoId"
     private fun lifeInfoCustomReminderWorkName(memoId: String) = "lifeinfo_custom_reminder_$memoId"
+    private fun scheduleCustomReminderWorkName(memoId: String) = "schedule_custom_reminder_$memoId"
 }

@@ -42,11 +42,13 @@ class MemoViewModel(
                 repository.observeMemoById(memoId),
                 repository.observeStudyItem(memoId),
                 repository.observeLifeInfoItem(memoId),
-            ) { memo, studyItem, lifeInfoItem ->
+                repository.observeScheduleItem(memoId),
+            ) { memo, studyItem, lifeInfoItem, scheduleItem ->
                 MemoDetailUiState(
                     memo = memo,
                     studyItem = studyItem,
                     lifeInfoItem = lifeInfoItem,
+                    scheduleItem = scheduleItem,
                     isLoading = false,
                 )
             }.collect { _detailState.value = it }
@@ -68,6 +70,12 @@ class MemoViewModel(
     fun setCustomReminderDate(memoId: String, at: Long?) {
         viewModelScope.launch {
             repository.setCustomReminderAt(memoId, at)
+        }
+    }
+
+    fun setScheduleCustomReminderDate(memoId: String, at: Long?) {
+        viewModelScope.launch {
+            repository.setScheduleCustomReminderAt(memoId, at)
         }
     }
 
