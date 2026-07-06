@@ -1,6 +1,6 @@
 ﻿package com.capturemate.app.feature.restaurant
 
-import android.net.Uri
+import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.clickable
@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.capturemate.app.BuildConfig
 import com.capturemate.app.data.local.entity.RestaurantGroupEntity
 import com.capturemate.app.data.local.entity.RestaurantMemoEntity
 import com.capturemate.app.domain.repository.CaptureRepository
@@ -42,7 +43,7 @@ fun RestaurantMapRoute(
     val state by viewModel.mapState.collectAsState()
     val groupedIds = state.groupedRestaurantIds
     val standaloneRestaurants = state.restaurants.filter { it.id !in groupedIds }
-    val restaurantsWithCoordinates = standaloneRestaurants.filter {
+    val restaurantsWithCoordinates = state.restaurants.filter {
         it.latitude != null && it.longitude != null
     }
     val restaurantsWithoutCoordinates = standaloneRestaurants.filter {
@@ -133,9 +134,11 @@ private fun MapPreviewCard(
             Text(text = "지도", style = MaterialTheme.typography.titleMedium)
             if (restaurants.isEmpty()) {
                 Text(text = "지도에 표시할 좌표가 있는 맛집이 없습니다.")
+            } else if (BuildConfig.KAKAO_JAVASCRIPT_KEY.isBlank()) {
+                Text(text = "KAKAO_JAVASCRIPT_KEY가 설정되면 카카오맵에 저장된 맛집 핀이 표시됩니다.")
             } else {
                 KakaoMapWebView(
-                    restaurant = restaurants.first(),
+                    restaurants = restaurants,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(240.dp),
@@ -155,31 +158,156 @@ private fun MapPreviewCard(
 
 @Composable
 private fun KakaoMapWebView(
-    restaurant: RestaurantMemoEntity,
+    restaurants: List<RestaurantMemoEntity>,
     modifier: Modifier = Modifier,
 ) {
-    val latitude = restaurant.latitude ?: return
-    val longitude = restaurant.longitude ?: return
-    val encodedName = Uri.encode(restaurant.name)
-    val mapUrl = "https://map.kakao.com/link/map/$encodedName,$latitude,$longitude"
+    val html = buildKakaoMapHtml(
+        javascriptKey = BuildConfig.KAKAO_JAVASCRIPT_KEY,
+        restaurants = restaurants,
+    )
 
     AndroidView(
         modifier = modifier,
         factory = { context ->
             WebView(context).apply {
+                webChromeClient = WebChromeClient()
                 webViewClient = WebViewClient()
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
-                loadUrl(mapUrl)
+                loadDataWithBaseURL(KAKAO_MAP_BASE_URL, html, "text/html", "UTF-8", null)
             }
         },
         update = { webView ->
-            if (webView.url != mapUrl) {
-                webView.loadUrl(mapUrl)
-            }
+            webView.loadDataWithBaseURL(KAKAO_MAP_BASE_URL, html, "text/html", "UTF-8", null)
         },
     )
 }
+
+private fun buildKakaoMapHtml(
+    javascriptKey: String,
+    restaurants: List<RestaurantMemoEntity>,
+): String {
+    val markers = restaurants.mapNotNull { restaurant ->
+        val latitude = restaurant.latitude ?: return@mapNotNull null
+        val longitude = restaurant.longitude ?: return@mapNotNull null
+        """
+            {
+                name: ${restaurant.name.toJsString()},
+                address: ${(restaurant.address ?: restaurant.roadAddress ?: "").toJsString()},
+                lat: $latitude,
+                lng: $longitude
+            }
+        """.trimIndent()
+    }.joinToString(",")
+
+    return """
+        <!doctype html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+            <style>
+                html, body, #map {
+                    width: 100%;
+                    height: 100%;
+                    margin: 0;
+                    padding: 0;
+                    overflow: hidden;
+                    font-family: sans-serif;
+                    background: #f3f4f6;
+                }
+                .info {
+                    min-width: 132px;
+                    padding: 8px 10px;
+                    color: #111827;
+                    font-size: 12px;
+                    line-height: 1.35;
+                }
+                .name {
+                    font-weight: 700;
+                    font-size: 13px;
+                    margin-bottom: 3px;
+                }
+                .address {
+                    color: #4b5563;
+                }
+            </style>
+            <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=$javascriptKey&autoload=false"></script>
+        </head>
+        <body>
+            <div id="map"></div>
+            <script>
+                const places = [$markers];
+                kakao.maps.load(function() {
+                    const first = places[0];
+                    const map = new kakao.maps.Map(document.getElementById('map'), {
+                        center: new kakao.maps.LatLng(first.lat, first.lng),
+                        level: places.length > 1 ? 5 : 3
+                    });
+                    const bounds = new kakao.maps.LatLngBounds();
+
+                    places.forEach(function(place) {
+                        const position = new kakao.maps.LatLng(place.lat, place.lng);
+                        bounds.extend(position);
+
+                        const marker = new kakao.maps.Marker({
+                            map: map,
+                            position: position,
+                            title: place.name
+                        });
+
+                        const info = new kakao.maps.InfoWindow({
+                            content:
+                                '<div class="info">' +
+                                '<div class="name">' + escapeHtml(place.name) + '</div>' +
+                                '<div class="address">' + escapeHtml(place.address) + '</div>' +
+                                '</div>'
+                        });
+
+                        kakao.maps.event.addListener(marker, 'click', function() {
+                            info.open(map, marker);
+                        });
+
+                        if (places.length === 1) {
+                            info.open(map, marker);
+                        }
+                    });
+
+                    if (places.length > 1) {
+                        map.setBounds(bounds);
+                    }
+                });
+
+                function escapeHtml(value) {
+                    return String(value || '')
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;')
+                        .replace(/'/g, '&#039;');
+                }
+            </script>
+        </body>
+        </html>
+    """.trimIndent()
+}
+
+private fun String.toJsString(): String =
+    buildString {
+        append("'")
+        this@toJsString.forEach { char ->
+            when (char) {
+                '\\' -> append("\\\\")
+                '\'' -> append("\\'")
+                '\n' -> append("\\n")
+                '\r' -> append("\\r")
+                else -> append(char)
+            }
+        }
+        append("'")
+    }
+
+private const val KAKAO_MAP_BASE_URL = "http://localhost/"
 
 @Composable
 private fun RestaurantGroupCard(group: RestaurantGroupEntity, onClick: () -> Unit) {

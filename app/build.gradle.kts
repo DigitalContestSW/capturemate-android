@@ -19,6 +19,11 @@ val googleWebClientId = providers.gradleProperty("GOOGLE_WEB_CLIENT_ID")
     .orElse(localProperties.getProperty("GOOGLE_WEB_CLIENT_ID", ""))
     .get()
 
+val kakaoJavascriptKey = providers.gradleProperty("KAKAO_JAVASCRIPT_KEY")
+    .orElse(providers.environmentVariable("KAKAO_JAVASCRIPT_KEY"))
+    .orElse(localProperties.getProperty("KAKAO_JAVASCRIPT_KEY", ""))
+    .get()
+
 android {
     namespace = "com.capturemate.app"
     compileSdk {
@@ -37,6 +42,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "CAPTUREMATE_AI_BASE_URL", "\"http://10.0.2.2:8001/\"")
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
+        buildConfigField("String", "KAKAO_JAVASCRIPT_KEY", "\"$kakaoJavascriptKey\"")
     }
 
     buildTypes {
