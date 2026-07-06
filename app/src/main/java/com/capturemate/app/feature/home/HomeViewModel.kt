@@ -21,7 +21,7 @@ class HomeViewModel(
     init {
         viewModelScope.launch {
             authRepository.observeSession().collect { session ->
-                _uiState.update { it.copy(session = session) }
+                _uiState.update { it.copy(session = session, isSessionLoaded = true) }
             }
         }
         viewModelScope.launch {
@@ -50,7 +50,7 @@ class HomeViewModel(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        errorMessage = throwable.message ?: "Google login failed.",
+                        errorMessage = throwable.toGoogleLoginMessage(),
                     )
                 }
             }
@@ -63,7 +63,12 @@ class HomeViewModel(
                 authRepository.signOut()
             }
             _uiState.update {
-                HomeUiState(onboardingCompleted = it.onboardingCompleted)
+                it.copy(
+                    isLoading = false,
+                    isSessionLoaded = true,
+                    session = null,
+                    errorMessage = null,
+                )
             }
         }
     }
@@ -78,6 +83,7 @@ class HomeViewModel(
 
 data class HomeUiState(
     val isLoading: Boolean = false,
+    val isSessionLoaded: Boolean = false,
     val session: AuthSession? = null,
     val onboardingCompleted: Boolean = false,
     val errorMessage: String? = null,
@@ -90,5 +96,16 @@ class HomeViewModelFactory(
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         require(modelClass.isAssignableFrom(HomeViewModel::class.java))
         return HomeViewModel(authRepository) as T
+    }
+}
+
+private fun Throwable.toGoogleLoginMessage(): String {
+    val rawMessage = message.orEmpty()
+    return when {
+        rawMessage.contains("No credentials available", ignoreCase = true) -> {
+            "기기에 로그인된 Google 계정이 없거나, 현재 기기에서 사용할 수 있는 자격 증명이 없습니다. Google 계정이 로그인된 Android 기기나 Google Play 지원 에뮬레이터에서 다시 시도하세요."
+        }
+        rawMessage.isNotBlank() -> rawMessage
+        else -> "Google login failed."
     }
 }
