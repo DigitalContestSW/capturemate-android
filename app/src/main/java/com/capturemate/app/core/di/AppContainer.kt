@@ -3,9 +3,9 @@ package com.capturemate.app.core.di
 import android.content.Context
 import androidx.room.Room
 import com.capturemate.app.BuildConfig
-import com.capturemate.app.core.auth.GoogleSignInClient
 import com.capturemate.app.core.ai.MlKitOcrTextExtractor
 import com.capturemate.app.core.ai.OcrTextExtractor
+import com.capturemate.app.core.auth.GoogleSignInClient
 import com.capturemate.app.core.privacy.SensitiveTextMasker
 import com.capturemate.app.data.local.AuthSessionStore
 import com.capturemate.app.data.local.CaptureMateDatabase
@@ -93,6 +93,7 @@ class AppContainer(context: Context) {
             captureDao = database.captureDao(),
             studyItemDao = database.studyItemDao(),
             lifeInfoItemDao = database.lifeInfoItemDao(),
+            restaurantMemoDao = database.restaurantMemoDao(),
             captureMateApi = captureMateApi,
             json = json,
             appContext = appContext,

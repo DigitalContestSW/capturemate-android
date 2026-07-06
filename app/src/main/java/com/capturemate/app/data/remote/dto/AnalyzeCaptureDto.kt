@@ -19,6 +19,7 @@ data class AnalyzeCaptureResponse(
     val recommendedAction: String? = null,
     val reminderAt: Long? = null,
     val categoryDetail: JsonElement? = null,
+    val details: JsonElement? = null,
 )
 
 @Serializable
@@ -33,4 +34,51 @@ data class LifeInfoDetailDto(
     val target: String,
     val applicationMethod: String,
     val deadline: Long,
+)
+
+@Serializable
+data class RestaurantAnalysisDto(
+    val restaurant: RestaurantPlaceDto = RestaurantPlaceDto(),
+    val group: RestaurantGroupDto? = null,
+    val confidence: Double = 0.5,
+    val needsUserReview: Boolean = false,
+)
+
+@Serializable
+data class RestaurantPlaceDto(
+    val name: String? = null,
+    val address: String? = null,
+    val roadAddress: String? = null,
+    val neighborhood: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val mapProvider: String? = null,
+    val mapProviderPlaceId: String? = null,
+    val menus: List<RestaurantMenuDto> = emptyList(),
+    val estimatedPricePerPersonMin: Int? = null,
+    val estimatedPricePerPersonMax: Int? = null,
+    val tags: List<String> = emptyList(),
+    val features: List<String> = emptyList(),
+    val recommendedActions: List<RestaurantRecommendedActionDto> = emptyList(),
+)
+
+@Serializable
+data class RestaurantMenuDto(
+    val name: String,
+    val price: Int? = null,
+    val currency: String = "KRW",
+)
+
+@Serializable
+data class RestaurantRecommendedActionDto(
+    val type: String = "other",
+    val title: String,
+    val description: String? = null,
+)
+
+@Serializable
+data class RestaurantGroupDto(
+    val id: String? = null,
+    val title: String? = null,
+    val neighborhood: String? = null,
 )
