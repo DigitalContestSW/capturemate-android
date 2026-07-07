@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.Flow
 
 interface CaptureRepository {
     fun observeCaptures(): Flow<List<CaptureEntity>>
+    fun observeCaptureById(captureId: String): Flow<CaptureEntity?>
     fun observeMemos(): Flow<List<MemoEntity>>
     fun observePendingMemos(): Flow<List<MemoEntity>>
     fun observeMemoById(memoId: String): Flow<MemoEntity?>

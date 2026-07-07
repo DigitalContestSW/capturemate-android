@@ -8,12 +8,15 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.capturemate.app.domain.repository.AddToGoogleCalendarResult
 import com.capturemate.app.domain.repository.CaptureRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -46,16 +49,22 @@ class MemoViewModel(
         }
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun loadMemoDetail(memoId: String) {
         viewModelScope.launch {
+            val memoFlow = repository.observeMemoById(memoId)
             combine(
-                repository.observeMemoById(memoId),
+                memoFlow,
+                memoFlow.flatMapLatest { memo ->
+                    memo?.captureId?.let { repository.observeCaptureById(it) } ?: flowOf(null)
+                },
                 repository.observeStudyItem(memoId),
                 repository.observeLifeInfoItem(memoId),
                 repository.observeScheduleItem(memoId),
-            ) { memo, studyItem, lifeInfoItem, scheduleItem ->
+            ) { memo, capture, studyItem, lifeInfoItem, scheduleItem ->
                 MemoDetailUiState(
                     memo = memo,
+                    capture = capture,
                     studyItem = studyItem,
                     lifeInfoItem = lifeInfoItem,
                     scheduleItem = scheduleItem,

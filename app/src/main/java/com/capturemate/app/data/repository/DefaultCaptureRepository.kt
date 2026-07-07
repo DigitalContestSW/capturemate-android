@@ -64,6 +64,9 @@ class DefaultCaptureRepository(
 ) : CaptureRepository {
     override fun observeCaptures(): Flow<List<CaptureEntity>> = captureDao.observeCaptures()
 
+    override fun observeCaptureById(captureId: String): Flow<CaptureEntity?> =
+        captureDao.observeCaptureById(captureId)
+
     override fun observeMemos(): Flow<List<MemoEntity>> = captureDao.observeMemos()
 
     override fun observePendingMemos(): Flow<List<MemoEntity>> = captureDao.observePendingMemos()
