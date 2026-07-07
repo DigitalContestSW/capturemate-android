@@ -38,7 +38,7 @@ import com.capturemate.app.data.local.entity.StudyItemEntity
         RestaurantGroupEntity::class,
         RestaurantGroupMemberEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -47,6 +47,7 @@ abstract class CaptureMateDatabase : RoomDatabase() {
     abstract fun studyItemDao(): StudyItemDao
     abstract fun lifeInfoItemDao(): LifeInfoItemDao
     abstract fun scheduleItemDao(): ScheduleItemDao
+    abstract fun restaurantMemoDao(): RestaurantMemoDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -62,8 +63,6 @@ abstract class CaptureMateDatabase : RoomDatabase() {
                         `location` TEXT,
                         `screenshotUris` TEXT NOT NULL,
                         `customReminderAt` INTEGER,
-                        `googleCalendarEventId` TEXT,
-                        `googleCalendarHtmlLink` TEXT,
                         `createdAt` INTEGER NOT NULL,
                         PRIMARY KEY(`id`)
                     )
@@ -78,6 +77,105 @@ abstract class CaptureMateDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE `schedule_items` ADD COLUMN `googleCalendarHtmlLink` TEXT")
             }
         }
+
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `restaurant_memos` (
+                        `id` TEXT NOT NULL,
+                        `memoId` TEXT NOT NULL,
+                        `captureId` TEXT,
+                        `name` TEXT NOT NULL,
+                        `summary` TEXT NOT NULL,
+                        `address` TEXT,
+                        `roadAddress` TEXT,
+                        `neighborhood` TEXT,
+                        `latitude` REAL,
+                        `longitude` REAL,
+                        `mapProvider` TEXT,
+                        `mapProviderPlaceId` TEXT,
+                        `estimatedPricePerPersonMin` INTEGER,
+                        `estimatedPricePerPersonMax` INTEGER,
+                        `confidence` REAL NOT NULL,
+                        `needsUserReview` INTEGER NOT NULL,
+                        `createdAt` INTEGER NOT NULL,
+                        `updatedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `restaurant_menus` (
+                        `id` TEXT NOT NULL,
+                        `restaurantMemoId` TEXT NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `price` INTEGER,
+                        `currency` TEXT NOT NULL,
+                        `sortOrder` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `restaurant_tags` (
+                        `id` TEXT NOT NULL,
+                        `restaurantMemoId` TEXT NOT NULL,
+                        `name` TEXT NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `restaurant_features` (
+                        `id` TEXT NOT NULL,
+                        `restaurantMemoId` TEXT NOT NULL,
+                        `text` TEXT NOT NULL,
+                        `sortOrder` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `restaurant_recommended_actions` (
+                        `id` TEXT NOT NULL,
+                        `restaurantMemoId` TEXT NOT NULL,
+                        `type` TEXT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `description` TEXT,
+                        `sortOrder` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `restaurant_groups` (
+                        `id` TEXT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `neighborhood` TEXT NOT NULL,
+                        `representativeLatitude` REAL,
+                        `representativeLongitude` REAL,
+                        `createdAt` INTEGER NOT NULL,
+                        `updatedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `restaurant_group_members` (
+                        `groupId` TEXT NOT NULL,
+                        `restaurantMemoId` TEXT NOT NULL,
+                        PRIMARY KEY(`groupId`, `restaurantMemoId`)
+                    )
+                    """.trimIndent(),
+                )
+            }
+        }
     }
-    abstract fun restaurantMemoDao(): RestaurantMemoDao
 }
