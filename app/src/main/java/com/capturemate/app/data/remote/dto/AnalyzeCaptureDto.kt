@@ -29,6 +29,15 @@ data class StudyDetailDto(
 )
 
 @Serializable
+data class ScheduleDetailDto(
+    val eventTitle: String? = null,
+    val deadlineAt: Long? = null,
+    val eventDateText: String? = null,
+    val location: String? = null,
+    val screenshotUris: List<String> = emptyList(),
+)
+
+@Serializable
 data class LifeInfoDetailDto(
     val benefit: String,
     val target: String,
