@@ -14,3 +14,6 @@
 .cxx
 local.properties
 docs/GITHUB_SETUP.md
+
+# personal dev notes (not shared via git)
+/dev-notes/
