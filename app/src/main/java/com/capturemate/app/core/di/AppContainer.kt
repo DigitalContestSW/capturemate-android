@@ -3,7 +3,6 @@ package com.capturemate.app.core.di
 import android.content.Context
 import androidx.room.Room
 import com.capturemate.app.BuildConfig
-import com.capturemate.app.core.auth.GoogleSignInClient
 import com.capturemate.app.core.ai.MlKitOcrTextExtractor
 import com.capturemate.app.core.ai.OcrTextExtractor
 import com.capturemate.app.core.calendar.GoogleCalendarClient
@@ -113,6 +112,7 @@ class AppContainer(context: Context) {
             lifeInfoItemDao = database.lifeInfoItemDao(),
             scheduleItemDao = database.scheduleItemDao(),
             googleCalendarClient = googleCalendarClient,
+            restaurantMemoDao = database.restaurantMemoDao(),
             captureMateApi = captureMateApi,
             json = json,
             appContext = appContext,

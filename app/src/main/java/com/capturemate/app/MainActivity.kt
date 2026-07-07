@@ -14,12 +14,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,16 +30,19 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.capturemate.app.feature.home.HomeRoute
 import com.capturemate.app.feature.home.HomeViewModel
 import com.capturemate.app.feature.home.HomeViewModelFactory
-import com.capturemate.app.feature.home.HomeRoute
 import com.capturemate.app.feature.home.LoginScreen
 import com.capturemate.app.feature.home.SettingsRoute
 import com.capturemate.app.feature.memo.MemoDetailRoute
 import com.capturemate.app.feature.memo.MemoListRoute
+import com.capturemate.app.feature.restaurant.RestaurantDetailRoute
+import com.capturemate.app.feature.restaurant.RestaurantGroupDetailRoute
+import com.capturemate.app.feature.restaurant.RestaurantMapRoute
 import com.capturemate.app.ui.theme.CaptureMateTheme
 
-private enum class Tab { Home, MemoList, Settings }
+private enum class Tab { Home, MemoList, Restaurant, Settings }
 
 class MainActivity : ComponentActivity() {
 
@@ -46,7 +50,7 @@ class MainActivity : ComponentActivity() {
 
     private val requestNotificationPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
-    ) { /* 사용자가 허용하든 거부하든, 이후 알림 예약은 그대로 시도되고 발송 시점에 권한을 다시 확인함 */ }
+    ) { /* 사용자가 허용하든 거부하든, 이후 알림 예약은 발송 시점에 권한을 다시 확인함 */ }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,8 +58,9 @@ class MainActivity : ComponentActivity() {
         requestNotificationPermissionIfNeeded()
         pendingMemoIdFromNotification = intent.getStringExtra(EXTRA_MEMO_ID)
 
-        val repository = (application as CaptureMateApplication).appContainer.captureRepository
-        val authRepository = (application as CaptureMateApplication).appContainer.authRepository
+        val appContainer = (application as CaptureMateApplication).appContainer
+        val repository = appContainer.captureRepository
+        val authRepository = appContainer.authRepository
 
         setContent {
             CaptureMateTheme {
@@ -64,64 +69,102 @@ class MainActivity : ComponentActivity() {
                     factory = HomeViewModelFactory(authRepository),
                 )
                 val homeUiState by homeViewModel.uiState.collectAsState()
-                var selectedMemoId by remember { mutableStateOf(pendingMemoIdFromNotification) }
                 val session = homeUiState.session
+                var selectedMemoId by remember { mutableStateOf(pendingMemoIdFromNotification) }
+                var selectedRestaurantMemoId by remember { mutableStateOf<String?>(null) }
+                var selectedRestaurantGroupId by remember { mutableStateOf<String?>(null) }
 
                 LaunchedEffect(pendingMemoIdFromNotification) {
                     pendingMemoIdFromNotification?.let { selectedMemoId = it }
                 }
 
                 val memoId = selectedMemoId
+                val restaurantMemoId = selectedRestaurantMemoId
+                val restaurantGroupId = selectedRestaurantGroupId
 
-                if (!homeUiState.isSessionLoaded) {
-                    Box(modifier = Modifier.fillMaxWidth())
-                } else if (homeUiState.session == null) {
-                    LoginScreen(
-                        isLoading = homeUiState.isLoading,
-                        errorMessage = homeUiState.errorMessage,
-                        versionName = BuildConfig.VERSION_NAME,
-                        onGoogleClick = { homeViewModel.signIn(context) },
-                    )
-                } else if (memoId != null) {
-                    BackHandler { selectedMemoId = null }
-                    MemoDetailRoute(
-                        memoId = memoId,
-                        repository = repository,
-                    )
-                } else {
-                    var selectedTab by remember { mutableStateOf(Tab.Home) }
+                when {
+                    !homeUiState.isSessionLoaded -> {
+                        Box(modifier = Modifier.fillMaxWidth())
+                    }
 
-                    Scaffold(
-                        bottomBar = {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                horizontalArrangement = Arrangement.SpaceEvenly,
-                            ) {
-                                TextButton(onClick = { selectedTab = Tab.Home }) {
-                                    Text(text = if (selectedTab == Tab.Home) "● 홈" else "홈")
+                    session == null -> {
+                        LoginScreen(
+                            isLoading = homeUiState.isLoading,
+                            errorMessage = homeUiState.errorMessage,
+                            versionName = BuildConfig.VERSION_NAME,
+                            onGoogleClick = { homeViewModel.signIn(context) },
+                        )
+                    }
+
+                    memoId != null -> {
+                        BackHandler { selectedMemoId = null }
+                        MemoDetailRoute(
+                            memoId = memoId,
+                            repository = repository,
+                        )
+                    }
+
+                    restaurantMemoId != null -> {
+                        BackHandler { selectedRestaurantMemoId = null }
+                        RestaurantDetailRoute(
+                            memoId = restaurantMemoId,
+                            repository = repository,
+                        )
+                    }
+
+                    restaurantGroupId != null -> {
+                        BackHandler { selectedRestaurantGroupId = null }
+                        RestaurantGroupDetailRoute(
+                            groupId = restaurantGroupId,
+                            repository = repository,
+                            onRestaurantClick = { selectedRestaurantMemoId = it },
+                        )
+                    }
+
+                    else -> {
+                        var selectedTab by remember { mutableStateOf(Tab.Home) }
+
+                        Scaffold(
+                            bottomBar = {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .navigationBarsPadding()
+                                        .padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceEvenly,
+                                ) {
+                                    TextButton(onClick = { selectedTab = Tab.Home }) {
+                                        Text(text = if (selectedTab == Tab.Home) "● 홈" else "홈")
+                                    }
+                                    TextButton(onClick = { selectedTab = Tab.MemoList }) {
+                                        Text(text = if (selectedTab == Tab.MemoList) "● 메모" else "메모")
+                                    }
+                                    TextButton(onClick = { selectedTab = Tab.Restaurant }) {
+                                        Text(text = if (selectedTab == Tab.Restaurant) "● 맛집" else "맛집")
+                                    }
+                                    TextButton(onClick = { selectedTab = Tab.Settings }) {
+                                        Text(text = if (selectedTab == Tab.Settings) "● 설정" else "설정")
+                                    }
                                 }
-                                TextButton(onClick = { selectedTab = Tab.MemoList }) {
-                                    Text(text = if (selectedTab == Tab.MemoList) "● 메모함" else "메모함")
+                            },
+                        ) { innerPadding ->
+                            Box(modifier = Modifier.padding(innerPadding)) {
+                                when (selectedTab) {
+                                    Tab.Home -> HomeRoute(repository = repository)
+                                    Tab.MemoList -> MemoListRoute(
+                                        repository = repository,
+                                        onMemoClick = { selectedMemoId = it },
+                                    )
+                                    Tab.Restaurant -> RestaurantMapRoute(
+                                        repository = repository,
+                                        onRestaurantClick = { selectedRestaurantMemoId = it },
+                                        onGroupClick = { selectedRestaurantGroupId = it },
+                                    )
+                                    Tab.Settings -> SettingsRoute(
+                                        session = session,
+                                        onSignOut = { homeViewModel.signOut() },
+                                    )
                                 }
-                                TextButton(onClick = { selectedTab = Tab.Settings }) {
-                                    Text(text = if (selectedTab == Tab.Settings) "● 설정" else "설정")
-                                }
-                            }
-                        },
-                    ) { innerPadding ->
-                        Box(modifier = Modifier.padding(innerPadding)) {
-                            when (selectedTab) {
-                                Tab.Home -> HomeRoute(repository = repository)
-                                Tab.MemoList -> MemoListRoute(
-                                    repository = repository,
-                                    onMemoClick = { selectedMemoId = it },
-                                )
-                                Tab.Settings -> SettingsRoute(
-                                    session = session,
-                                    onSignOut = { homeViewModel.signOut() },
-                                )
                             }
                         }
                     }
