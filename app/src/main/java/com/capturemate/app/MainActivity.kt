@@ -33,6 +33,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.capturemate.app.feature.home.HomeRoute
 import com.capturemate.app.feature.home.HomeViewModel
 import com.capturemate.app.feature.home.HomeViewModelFactory
+import com.capturemate.app.feature.home.LoginScreen
 import com.capturemate.app.feature.home.SettingsRoute
 import com.capturemate.app.feature.memo.MemoDetailRoute
 import com.capturemate.app.feature.memo.MemoListRoute
@@ -84,6 +85,15 @@ class MainActivity : FragmentActivity() {
                 when {
                     !homeUiState.isSessionLoaded -> {
                         Box(modifier = Modifier.fillMaxWidth())
+                    }
+
+                    session == null -> {
+                        LoginScreen(
+                            isLoading = homeUiState.isLoading,
+                            errorMessage = homeUiState.errorMessage,
+                            versionName = BuildConfig.VERSION_NAME,
+                            onGoogleClick = { homeViewModel.signIn(context) },
+                        )
                     }
 
                     memoId != null -> {
