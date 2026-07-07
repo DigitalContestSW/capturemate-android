@@ -19,6 +19,10 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+<<<<<<< Updated upstream
+=======
+        maven("https://repository.map.naver.com/archive/maven")
+>>>>>>> Stashed changes
     }
 }
 
