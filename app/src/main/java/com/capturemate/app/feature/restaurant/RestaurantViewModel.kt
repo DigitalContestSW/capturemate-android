@@ -17,6 +17,8 @@ import kotlinx.coroutines.launch
 class RestaurantViewModel(
     private val repository: CaptureRepository,
 ) : ViewModel() {
+    private var debugPlaceSeedRequested = false
+
     private val _detailState = MutableStateFlow(RestaurantDetailUiState())
     val detailState: StateFlow<RestaurantDetailUiState> = _detailState.asStateFlow()
 
@@ -29,6 +31,16 @@ class RestaurantViewModel(
     init {
         viewModelScope.launch {
             repository.observeRestaurantMapState().collect { state ->
+                if (
+                    BuildConfig.DEBUG &&
+                    state.restaurants.isEmpty() &&
+                    !debugPlaceSeedRequested
+                ) {
+                    debugPlaceSeedRequested = true
+                    repository.createDebugRestaurantPlace()
+                    return@collect
+                }
+
                 val memberCountByGroup = state.groupMembers.groupingBy { it.groupId }.eachCount()
                 val visibleGroupIds = memberCountByGroup.filterValues { it >= 2 }.keys
                 val groupedRestaurantIds = state.groupMembers

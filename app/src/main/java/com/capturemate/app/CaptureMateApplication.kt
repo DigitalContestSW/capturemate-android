@@ -1,10 +1,8 @@
 package com.capturemate.app
 
 import android.app.Application
-import android.os.Build
-import com.capturemate.app.BuildConfig
 import com.capturemate.app.core.di.AppContainer
-import com.kakao.vectormap.KakaoMapSdk
+import com.naver.maps.map.NaverMapSdk
 
 class CaptureMateApplication : Application() {
     lateinit var appContainer: AppContainer
@@ -12,17 +10,10 @@ class CaptureMateApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        if (
-            BuildConfig.KAKAO_NATIVE_APP_KEY.isNotBlank() &&
-            Build.SUPPORTED_ABIS.firstOrNull() in KAKAO_MAP_SUPPORTED_ABIS &&
-            !KakaoMapSdk.isInitialized()
-        ) {
-            KakaoMapSdk.init(this, BuildConfig.KAKAO_NATIVE_APP_KEY)
+        if (BuildConfig.NAVER_MAP_NCP_KEY_ID.isNotBlank()) {
+            NaverMapSdk.getInstance(this).client =
+                NaverMapSdk.NcpKeyClient(BuildConfig.NAVER_MAP_NCP_KEY_ID)
         }
         appContainer = AppContainer(this)
-    }
-
-    private companion object {
-        val KAKAO_MAP_SUPPORTED_ABIS = setOf("arm64-v8a", "armeabi-v7a")
     }
 }

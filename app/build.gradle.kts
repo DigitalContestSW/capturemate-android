@@ -19,15 +19,17 @@ val googleWebClientId = providers.gradleProperty("GOOGLE_WEB_CLIENT_ID")
     .orElse(localProperties.getProperty("GOOGLE_WEB_CLIENT_ID", ""))
     .get()
 
-val kakaoJavascriptKey = providers.gradleProperty("KAKAO_JAVASCRIPT_KEY")
-    .orElse(providers.environmentVariable("KAKAO_JAVASCRIPT_KEY"))
-    .orElse(localProperties.getProperty("KAKAO_JAVASCRIPT_KEY", ""))
+val configuredNaverMapNcpKeyId = providers.gradleProperty("NAVER_MAP_NCP_KEY_ID")
+    .orElse(providers.environmentVariable("NAVER_MAP_NCP_KEY_ID"))
+    .orElse(localProperties.getProperty("NAVER_MAP_NCP_KEY_ID", ""))
     .get()
 
-val kakaoNativeAppKey = providers.gradleProperty("KAKAO_NATIVE_APP_KEY")
-    .orElse(providers.environmentVariable("KAKAO_NATIVE_APP_KEY"))
-    .orElse(localProperties.getProperty("KAKAO_NATIVE_APP_KEY", ""))
+val legacyNaverMapClientId = providers.gradleProperty("NAVER_MAP_CLIENT_ID")
+    .orElse(providers.environmentVariable("NAVER_MAP_CLIENT_ID"))
+    .orElse(localProperties.getProperty("NAVER_MAP_CLIENT_ID", ""))
     .get()
+
+val naverMapNcpKeyId = configuredNaverMapNcpKeyId.ifBlank { legacyNaverMapClientId }
 
 val captureMateAiBaseUrl = providers.gradleProperty("CAPTUREMATE_AI_BASE_URL")
     .orElse(providers.environmentVariable("CAPTUREMATE_AI_BASE_URL"))
@@ -56,9 +58,8 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "CAPTUREMATE_AI_BASE_URL", captureMateAiBaseUrl.asBuildConfigString())
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", googleWebClientId.asBuildConfigString())
-        buildConfigField("String", "KAKAO_JAVASCRIPT_KEY", kakaoJavascriptKey.asBuildConfigString())
-        buildConfigField("String", "KAKAO_NATIVE_APP_KEY", kakaoNativeAppKey.asBuildConfigString())
-        manifestPlaceholders["KAKAO_NATIVE_APP_KEY"] = kakaoNativeAppKey
+        buildConfigField("String", "NAVER_MAP_NCP_KEY_ID", naverMapNcpKeyId.asBuildConfigString())
+        manifestPlaceholders["NAVER_MAP_NCP_KEY_ID"] = naverMapNcpKeyId
     }
 
     buildTypes {
@@ -86,6 +87,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.fragment.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.navigation.compose)
@@ -105,7 +107,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.mlkit.text.recognition)
     implementation(libs.mlkit.text.recognition.korean)
-    implementation(libs.kakao.map)
+    implementation(libs.naver.map)
     ksp(libs.androidx.room.compiler)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))

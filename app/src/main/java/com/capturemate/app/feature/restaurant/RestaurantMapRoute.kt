@@ -1,6 +1,7 @@
-﻿package com.capturemate.app.feature.restaurant
+package com.capturemate.app.feature.restaurant
 
-import android.os.Build
+import android.view.View
+import android.view.ViewGroup
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -20,24 +21,29 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.ViewCompat
+import androidx.fragment.app.FragmentActivity
+import androidx.fragment.app.commit
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.capturemate.app.BuildConfig
 import com.capturemate.app.data.local.entity.RestaurantGroupEntity
 import com.capturemate.app.data.local.entity.RestaurantMemoEntity
 import com.capturemate.app.domain.repository.CaptureRepository
-import com.kakao.vectormap.KakaoMap
-import com.kakao.vectormap.KakaoMapReadyCallback
-import com.kakao.vectormap.LatLng
-import com.kakao.vectormap.MapLifeCycleCallback
-import com.kakao.vectormap.MapView
-import com.kakao.vectormap.camera.CameraUpdateFactory
-import com.kakao.vectormap.label.LabelOptions
-import com.kakao.vectormap.label.LabelTextBuilder
+import com.naver.maps.geometry.LatLng
+import com.naver.maps.map.CameraUpdate
+import com.naver.maps.map.MapFragment
+import com.naver.maps.map.NaverMap
+import com.naver.maps.map.overlay.Marker
 
 @Composable
 fun RestaurantMapRoute(
@@ -144,13 +150,12 @@ private fun MapPreviewCard(
             Text(text = "지도", style = MaterialTheme.typography.titleMedium)
             if (restaurants.isEmpty()) {
                 Text(text = "지도에 표시할 좌표가 있는 맛집이 없습니다.")
-            } else if (BuildConfig.KAKAO_NATIVE_APP_KEY.isBlank()) {
-                Text(text = "KAKAO_NATIVE_APP_KEY가 설정되면 네이티브 카카오맵에 저장된 맛집 핀이 표시됩니다.")
-            } else if (!isKakaoNativeMapSupported()) {
-                Text(text = "현재 x86 에뮬레이터에서는 카카오 네이티브 지도 SDK가 지원되지 않습니다. arm64 실제 기기 또는 arm64 에뮬레이터에서 확인하세요.")
+            } else if (BuildConfig.NAVER_MAP_NCP_KEY_ID.isBlank()) {
+                Text(text = "NAVER_MAP_NCP_KEY_ID 또는 NAVER_MAP_CLIENT_ID가 설정되면 네이버맵에 저장된 맛집 핀이 표시됩니다.")
             } else {
-                KakaoNativeMapView(
+                NaverRestaurantMapView(
                     restaurants = restaurants,
+                    onRestaurantClick = onRestaurantClick,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(240.dp),
@@ -169,63 +174,107 @@ private fun MapPreviewCard(
 }
 
 @Composable
-private fun KakaoNativeMapView(
+private fun NaverRestaurantMapView(
     restaurants: List<RestaurantMemoEntity>,
+    onRestaurantClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
+    val activity = context as? FragmentActivity
+    val mapContainerId = remember { ViewCompat.generateViewId() }
+    val mapFragmentTag = remember { "restaurant_naver_map_$mapContainerId" }
+    val naverMapState = remember { mutableStateOf<NaverMap?>(null) }
+    val markers = remember { mutableStateListOf<Marker>() }
     val places = restaurants.mapNotNull { restaurant ->
         val latitude = restaurant.latitude ?: return@mapNotNull null
         val longitude = restaurant.longitude ?: return@mapNotNull null
         RestaurantMapPlace(
+            memoId = restaurant.memoId,
             name = restaurant.name,
-            position = LatLng.from(latitude, longitude),
+            position = LatLng(latitude, longitude),
         )
+    }
+
+    if (activity == null) {
+        Text(text = "지도를 표시하려면 FragmentActivity가 필요합니다.")
+        return
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            markers.forEach { it.map = null }
+            markers.clear()
+        }
     }
 
     AndroidView(
         modifier = modifier,
-        factory = { context ->
-            MapView(context).apply {
-                start(
-                    object : MapLifeCycleCallback() {
-                        override fun onMapDestroy() = Unit
-
-                        override fun onMapError(error: Exception) {
-                            error.printStackTrace()
-                        }
-                    },
-                    object : KakaoMapReadyCallback() {
-                        override fun onMapReady(kakaoMap: KakaoMap) {
-                            kakaoMap.moveCamera(
-                                CameraUpdateFactory.newCenterPosition(places.first().position),
-                            )
-                            val layer = kakaoMap.labelManager?.layer
-                            places.forEach { place ->
-                                layer?.addLabel(
-                                    LabelOptions.from(place.position)
-                                        .setTexts(LabelTextBuilder().setTexts(place.name)),
-                                )
-                            }
-                        }
-
-                        override fun getPosition(): LatLng = places.first().position
-
-                        override fun getZoomLevel(): Int = 15
-                    },
+        factory = { androidContext ->
+            androidx.fragment.app.FragmentContainerView(androidContext).apply {
+                id = mapContainerId
+                layoutParams = ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
                 )
+                post {
+                    val fragmentManager = activity.supportFragmentManager
+                    val existing = fragmentManager.findFragmentByTag(mapFragmentTag) as? MapFragment
+                    val mapFragment = existing ?: MapFragment.newInstance().also { fragment ->
+                        fragmentManager.commit {
+                            replace(mapContainerId, fragment, mapFragmentTag)
+                        }
+                    }
+                    mapFragment.getMapAsync { naverMap ->
+                        naverMapState.value = naverMap
+                        naverMap.renderRestaurantMarkers(
+                            places = places,
+                            markers = markers,
+                            onRestaurantClick = onRestaurantClick,
+                        )
+                    }
+                }
             }
-        }
+        },
+        update = {
+            naverMapState.value?.renderRestaurantMarkers(
+                places = places,
+                markers = markers,
+                onRestaurantClick = onRestaurantClick,
+            )
+        },
     )
 }
 
+private fun NaverMap.renderRestaurantMarkers(
+    places: List<RestaurantMapPlace>,
+    markers: MutableList<Marker>,
+    onRestaurantClick: (String) -> Unit,
+) {
+    markers.forEach { it.map = null }
+    markers.clear()
+
+    val first = places.firstOrNull() ?: return
+    moveCamera(CameraUpdate.scrollAndZoomTo(first.position, 15.0))
+
+    places.forEach { place ->
+        Marker().apply {
+            position = place.position
+            captionText = place.name
+            setOnClickListener {
+                onRestaurantClick(place.memoId)
+                true
+            }
+            map = this@renderRestaurantMarkers
+            markers.add(this)
+        }
+    }
+}
+
 private data class RestaurantMapPlace(
+    val memoId: String,
     val name: String,
     val position: LatLng,
 )
-
-private fun isKakaoNativeMapSupported(): Boolean =
-    Build.SUPPORTED_ABIS.firstOrNull() == "arm64-v8a" ||
-        Build.SUPPORTED_ABIS.firstOrNull() == "armeabi-v7a"
 
 @Composable
 private fun RestaurantGroupCard(group: RestaurantGroupEntity, onClick: () -> Unit) {

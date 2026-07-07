@@ -20,6 +20,7 @@ interface CaptureRepository {
     fun observeRestaurantMapState(): Flow<RestaurantMapState>
     fun observeRestaurantGroup(groupId: String): Flow<RestaurantGroup?>
 
+    suspend fun createDebugRestaurantPlace()
     suspend fun analyzeAndCreateMemo(captureId: String, maskedText: String): MemoEntity
     suspend fun confirmMemo(memoId: String)
     suspend fun deleteMemo(memoId: String)

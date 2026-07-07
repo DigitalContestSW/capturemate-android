@@ -5,7 +5,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -29,11 +28,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.capturemate.app.feature.home.HomeRoute
 import com.capturemate.app.feature.home.HomeViewModel
 import com.capturemate.app.feature.home.HomeViewModelFactory
-import com.capturemate.app.feature.home.LoginScreen
 import com.capturemate.app.feature.home.SettingsRoute
 import com.capturemate.app.feature.memo.MemoDetailRoute
 import com.capturemate.app.feature.memo.MemoListRoute
@@ -44,13 +43,13 @@ import com.capturemate.app.ui.theme.CaptureMateTheme
 
 private enum class Tab { Home, MemoList, Restaurant, Settings }
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
 
     private var pendingMemoIdFromNotification by mutableStateOf<String?>(null)
 
     private val requestNotificationPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
-    ) { /* 사용자가 허용하든 거부하든, 이후 알림 예약은 발송 시점에 권한을 다시 확인함 */ }
+    ) { /* Permission result is only needed before scheduling future notifications. */ }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -86,15 +85,6 @@ class MainActivity : ComponentActivity() {
                     !homeUiState.isSessionLoaded -> {
                         Box(modifier = Modifier.fillMaxWidth())
                     }
-
-//                    session == null -> {
-//                        LoginScreen(
-//                            isLoading = homeUiState.isLoading,
-//                            errorMessage = homeUiState.errorMessage,
-//                            versionName = BuildConfig.VERSION_NAME,
-//                            onGoogleClick = { homeViewModel.signIn(context) },
-//                        )
-//                    }
 
                     memoId != null -> {
                         BackHandler { selectedMemoId = null }
@@ -134,16 +124,16 @@ class MainActivity : ComponentActivity() {
                                     horizontalArrangement = Arrangement.SpaceEvenly,
                                 ) {
                                     TextButton(onClick = { selectedTab = Tab.Home }) {
-                                        Text(text = if (selectedTab == Tab.Home) "● 홈" else "홈")
+                                        Text(text = "홈")
                                     }
                                     TextButton(onClick = { selectedTab = Tab.MemoList }) {
-                                        Text(text = if (selectedTab == Tab.MemoList) "● 메모" else "메모")
+                                        Text(text = "메모")
                                     }
                                     TextButton(onClick = { selectedTab = Tab.Restaurant }) {
-                                        Text(text = if (selectedTab == Tab.Restaurant) "● 맛집" else "맛집")
+                                        Text(text = "맛집")
                                     }
                                     TextButton(onClick = { selectedTab = Tab.Settings }) {
-                                        Text(text = if (selectedTab == Tab.Settings) "● 설정" else "설정")
+                                        Text(text = "설정")
                                     }
                                 }
                             },
