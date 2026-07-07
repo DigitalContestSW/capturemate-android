@@ -87,14 +87,14 @@ class MainActivity : ComponentActivity() {
                         Box(modifier = Modifier.fillMaxWidth())
                     }
 
-                    session == null -> {
-                        LoginScreen(
-                            isLoading = homeUiState.isLoading,
-                            errorMessage = homeUiState.errorMessage,
-                            versionName = BuildConfig.VERSION_NAME,
-                            onGoogleClick = { homeViewModel.signIn(context) },
-                        )
-                    }
+//                    session == null -> {
+//                        LoginScreen(
+//                            isLoading = homeUiState.isLoading,
+//                            errorMessage = homeUiState.errorMessage,
+//                            versionName = BuildConfig.VERSION_NAME,
+//                            onGoogleClick = { homeViewModel.signIn(context) },
+//                        )
+//                    }
 
                     memoId != null -> {
                         BackHandler { selectedMemoId = null }

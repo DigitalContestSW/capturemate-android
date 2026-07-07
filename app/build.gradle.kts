@@ -24,6 +24,20 @@ val kakaoJavascriptKey = providers.gradleProperty("KAKAO_JAVASCRIPT_KEY")
     .orElse(localProperties.getProperty("KAKAO_JAVASCRIPT_KEY", ""))
     .get()
 
+val kakaoNativeAppKey = providers.gradleProperty("KAKAO_NATIVE_APP_KEY")
+    .orElse(providers.environmentVariable("KAKAO_NATIVE_APP_KEY"))
+    .orElse(localProperties.getProperty("KAKAO_NATIVE_APP_KEY", ""))
+    .get()
+
+val captureMateAiBaseUrl = providers.gradleProperty("CAPTUREMATE_AI_BASE_URL")
+    .orElse(providers.environmentVariable("CAPTUREMATE_AI_BASE_URL"))
+    .orElse(localProperties.getProperty("CAPTUREMATE_AI_BASE_URL", "http://10.0.2.2:8001/"))
+    .get()
+    .let { value -> if (value.endsWith("/")) value else "$value/" }
+
+fun String.asBuildConfigString(): String =
+    "\"" + replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
 android {
     namespace = "com.capturemate.app"
     compileSdk {
@@ -40,9 +54,11 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField("String", "CAPTUREMATE_AI_BASE_URL", "\"http://10.0.2.2:8001/\"")
-        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
-        buildConfigField("String", "KAKAO_JAVASCRIPT_KEY", "\"$kakaoJavascriptKey\"")
+        buildConfigField("String", "CAPTUREMATE_AI_BASE_URL", captureMateAiBaseUrl.asBuildConfigString())
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", googleWebClientId.asBuildConfigString())
+        buildConfigField("String", "KAKAO_JAVASCRIPT_KEY", kakaoJavascriptKey.asBuildConfigString())
+        buildConfigField("String", "KAKAO_NATIVE_APP_KEY", kakaoNativeAppKey.asBuildConfigString())
+        manifestPlaceholders["KAKAO_NATIVE_APP_KEY"] = kakaoNativeAppKey
     }
 
     buildTypes {
@@ -89,6 +105,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.mlkit.text.recognition)
     implementation(libs.mlkit.text.recognition.korean)
+    implementation(libs.kakao.map)
     ksp(libs.androidx.room.compiler)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
