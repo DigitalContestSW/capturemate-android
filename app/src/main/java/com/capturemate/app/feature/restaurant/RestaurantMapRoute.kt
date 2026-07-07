@@ -1,6 +1,7 @@
-﻿package com.capturemate.app.feature.restaurant
+package com.capturemate.app.feature.restaurant
 
 import android.view.View
+import android.view.ViewGroup
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -23,14 +24,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.ViewCompat
 import androidx.fragment.app.FragmentActivity
-import androidx.fragment.app.FragmentContainerView
-import androidx.fragment.app.commitNow
+import androidx.fragment.app.commit
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.capturemate.app.BuildConfig
 import com.capturemate.app.data.local.entity.RestaurantGroupEntity
@@ -39,6 +42,7 @@ import com.capturemate.app.domain.repository.CaptureRepository
 import com.naver.maps.geometry.LatLng
 import com.naver.maps.map.CameraUpdate
 import com.naver.maps.map.MapFragment
+import com.naver.maps.map.NaverMap
 import com.naver.maps.map.overlay.Marker
 
 @Composable
@@ -146,11 +150,12 @@ private fun MapPreviewCard(
             Text(text = "지도", style = MaterialTheme.typography.titleMedium)
             if (restaurants.isEmpty()) {
                 Text(text = "지도에 표시할 좌표가 있는 맛집이 없습니다.")
-            } else if (BuildConfig.NAVER_MAP_NCP_KEY_ID.isBlank() && BuildConfig.NAVER_MAP_CLIENT_ID.isBlank()) {
-                Text(text = "NAVER_MAP_CLIENT_ID 또는 NAVER_MAP_NCP_KEY_ID가 설정되면 네이버맵에 저장된 맛집 핀이 표시됩니다.")
+            } else if (BuildConfig.NAVER_MAP_NCP_KEY_ID.isBlank()) {
+                Text(text = "NAVER_MAP_NCP_KEY_ID 또는 NAVER_MAP_CLIENT_ID가 설정되면 네이버맵에 저장된 맛집 핀이 표시됩니다.")
             } else {
                 NaverRestaurantMapView(
                     restaurants = restaurants,
+                    onRestaurantClick = onRestaurantClick,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(240.dp),
@@ -171,69 +176,102 @@ private fun MapPreviewCard(
 @Composable
 private fun NaverRestaurantMapView(
     restaurants: List<RestaurantMemoEntity>,
+    onRestaurantClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val activity = remember(context) { context.findFragmentActivity() }
+    val activity = context as? FragmentActivity
+    val mapContainerId = remember { ViewCompat.generateViewId() }
+    val mapFragmentTag = remember { "restaurant_naver_map_$mapContainerId" }
+    val naverMapState = remember { mutableStateOf<NaverMap?>(null) }
+    val markers = remember { mutableStateListOf<Marker>() }
     val places = restaurants.mapNotNull { restaurant ->
         val latitude = restaurant.latitude ?: return@mapNotNull null
         val longitude = restaurant.longitude ?: return@mapNotNull null
         RestaurantMapPlace(
+            memoId = restaurant.memoId,
             name = restaurant.name,
             position = LatLng(latitude, longitude),
         )
     }
-    val containerId = remember { View.generateViewId() }
-    val fragmentTag = remember(containerId) { "restaurant_map_$containerId" }
 
-    DisposableEffect(activity, containerId, places) {
-        if (activity == null) {
-            onDispose { }
-        } else {
-            val fragmentManager = activity.supportFragmentManager
-            val mapFragment = (fragmentManager.findFragmentByTag(fragmentTag) as? MapFragment)
-                ?: MapFragment.newInstance().also { fragment ->
-                    fragmentManager.commitNow {
-                        replace(containerId, fragment, fragmentTag)
-                    }
-                }
-            mapFragment.getMapAsync { readyMap ->
-                readyMap.moveCamera(CameraUpdate.scrollAndZoomTo(places.first().position, 15.0))
-                places.forEach { place ->
-                    Marker(place.position).apply {
-                        captionText = place.name
-                        map = readyMap
-                    }
-                }
-            }
-            onDispose {
-                (fragmentManager.findFragmentByTag(fragmentTag) as? MapFragment)?.let { fragment ->
-                    fragmentManager.commitNow(allowStateLoss = true) {
-                        remove(fragment)
-                    }
-                }
-            }
+    if (activity == null) {
+        Text(text = "지도를 표시하려면 FragmentActivity가 필요합니다.")
+        return
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            markers.forEach { it.map = null }
+            markers.clear()
         }
     }
 
     AndroidView(
         modifier = modifier,
-        factory = { viewContext ->
-            FragmentContainerView(viewContext).apply {
-                id = containerId
+        factory = { androidContext ->
+            androidx.fragment.app.FragmentContainerView(androidContext).apply {
+                id = mapContainerId
+                layoutParams = ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                )
+                post {
+                    val fragmentManager = activity.supportFragmentManager
+                    val existing = fragmentManager.findFragmentByTag(mapFragmentTag) as? MapFragment
+                    val mapFragment = existing ?: MapFragment.newInstance().also { fragment ->
+                        fragmentManager.commit {
+                            replace(mapContainerId, fragment, mapFragmentTag)
+                        }
+                    }
+                    mapFragment.getMapAsync { naverMap ->
+                        naverMapState.value = naverMap
+                        naverMap.renderRestaurantMarkers(
+                            places = places,
+                            markers = markers,
+                            onRestaurantClick = onRestaurantClick,
+                        )
+                    }
+                }
             }
+        },
+        update = {
+            naverMapState.value?.renderRestaurantMarkers(
+                places = places,
+                markers = markers,
+                onRestaurantClick = onRestaurantClick,
+            )
         },
     )
 }
 
-private tailrec fun android.content.Context.findFragmentActivity(): FragmentActivity? =
-    when (this) {
-        is FragmentActivity -> this
-        is android.content.ContextWrapper -> baseContext.findFragmentActivity()
-        else -> null
+private fun NaverMap.renderRestaurantMarkers(
+    places: List<RestaurantMapPlace>,
+    markers: MutableList<Marker>,
+    onRestaurantClick: (String) -> Unit,
+) {
+    markers.forEach { it.map = null }
+    markers.clear()
+
+    val first = places.firstOrNull() ?: return
+    moveCamera(CameraUpdate.scrollAndZoomTo(first.position, 15.0))
+
+    places.forEach { place ->
+        Marker().apply {
+            position = place.position
+            captionText = place.name
+            setOnClickListener {
+                onRestaurantClick(place.memoId)
+                true
+            }
+            map = this@renderRestaurantMarkers
+            markers.add(this)
+        }
     }
+}
 
 private data class RestaurantMapPlace(
+    val memoId: String,
     val name: String,
     val position: LatLng,
 )

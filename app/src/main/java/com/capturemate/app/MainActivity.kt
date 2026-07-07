@@ -1,11 +1,10 @@
 package com.capturemate.app
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
-<<<<<<< Updated upstream
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
-=======
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -31,13 +30,17 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.viewmodel.compose.viewModel
->>>>>>> Stashed changes
 import com.capturemate.app.feature.home.HomeRoute
+import com.capturemate.app.feature.home.HomeViewModel
+import com.capturemate.app.feature.home.HomeViewModelFactory
+import com.capturemate.app.feature.home.SettingsRoute
+import com.capturemate.app.feature.memo.MemoDetailRoute
+import com.capturemate.app.feature.memo.MemoListRoute
+import com.capturemate.app.feature.restaurant.RestaurantDetailRoute
+import com.capturemate.app.feature.restaurant.RestaurantGroupDetailRoute
+import com.capturemate.app.feature.restaurant.RestaurantMapRoute
 import com.capturemate.app.ui.theme.CaptureMateTheme
 
-<<<<<<< Updated upstream
-class MainActivity : ComponentActivity() {
-=======
 private enum class Tab { Home, MemoList, Restaurant, Settings }
 
 class MainActivity : FragmentActivity() {
@@ -46,16 +49,140 @@ class MainActivity : FragmentActivity() {
 
     private val requestNotificationPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
-    ) { /* 사용자가 허용하든 거부하든, 이후 알림 예약은 발송 시점에 권한을 다시 확인함 */ }
+    ) { /* Permission result is only needed before scheduling future notifications. */ }
 
->>>>>>> Stashed changes
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        requestNotificationPermissionIfNeeded()
+        pendingMemoIdFromNotification = intent.getStringExtra(EXTRA_MEMO_ID)
+
+        val appContainer = (application as CaptureMateApplication).appContainer
+        val repository = appContainer.captureRepository
+        val authRepository = appContainer.authRepository
+
         setContent {
             CaptureMateTheme {
-                HomeRoute()
+                val context = LocalContext.current
+                val homeViewModel: HomeViewModel = viewModel(
+                    factory = HomeViewModelFactory(authRepository),
+                )
+                val homeUiState by homeViewModel.uiState.collectAsState()
+                val session = homeUiState.session
+                var selectedMemoId by remember { mutableStateOf(pendingMemoIdFromNotification) }
+                var selectedRestaurantMemoId by remember { mutableStateOf<String?>(null) }
+                var selectedRestaurantGroupId by remember { mutableStateOf<String?>(null) }
+
+                LaunchedEffect(pendingMemoIdFromNotification) {
+                    pendingMemoIdFromNotification?.let { selectedMemoId = it }
+                }
+
+                val memoId = selectedMemoId
+                val restaurantMemoId = selectedRestaurantMemoId
+                val restaurantGroupId = selectedRestaurantGroupId
+
+                when {
+                    !homeUiState.isSessionLoaded -> {
+                        Box(modifier = Modifier.fillMaxWidth())
+                    }
+
+                    memoId != null -> {
+                        BackHandler { selectedMemoId = null }
+                        MemoDetailRoute(
+                            memoId = memoId,
+                            repository = repository,
+                        )
+                    }
+
+                    restaurantMemoId != null -> {
+                        BackHandler { selectedRestaurantMemoId = null }
+                        RestaurantDetailRoute(
+                            memoId = restaurantMemoId,
+                            repository = repository,
+                        )
+                    }
+
+                    restaurantGroupId != null -> {
+                        BackHandler { selectedRestaurantGroupId = null }
+                        RestaurantGroupDetailRoute(
+                            groupId = restaurantGroupId,
+                            repository = repository,
+                            onRestaurantClick = { selectedRestaurantMemoId = it },
+                        )
+                    }
+
+                    else -> {
+                        var selectedTab by remember { mutableStateOf(Tab.Home) }
+
+                        Scaffold(
+                            bottomBar = {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .navigationBarsPadding()
+                                        .padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceEvenly,
+                                ) {
+                                    TextButton(onClick = { selectedTab = Tab.Home }) {
+                                        Text(text = "홈")
+                                    }
+                                    TextButton(onClick = { selectedTab = Tab.MemoList }) {
+                                        Text(text = "메모")
+                                    }
+                                    TextButton(onClick = { selectedTab = Tab.Restaurant }) {
+                                        Text(text = "맛집")
+                                    }
+                                    TextButton(onClick = { selectedTab = Tab.Settings }) {
+                                        Text(text = "설정")
+                                    }
+                                }
+                            },
+                        ) { innerPadding ->
+                            Box(modifier = Modifier.padding(innerPadding)) {
+                                when (selectedTab) {
+                                    Tab.Home -> HomeRoute(repository = repository)
+                                    Tab.MemoList -> MemoListRoute(
+                                        repository = repository,
+                                        onMemoClick = { selectedMemoId = it },
+                                    )
+                                    Tab.Restaurant -> RestaurantMapRoute(
+                                        repository = repository,
+                                        onRestaurantClick = { selectedRestaurantMemoId = it },
+                                        onGroupClick = { selectedRestaurantGroupId = it },
+                                    )
+                                    Tab.Settings -> SettingsRoute(
+                                        session = session,
+                                        onSignOut = { homeViewModel.signOut() },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingMemoIdFromNotification = intent.getStringExtra(EXTRA_MEMO_ID)
+    }
+
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+
+        val granted = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.POST_NOTIFICATIONS,
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (!granted) {
+            requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    companion object {
+        const val EXTRA_MEMO_ID = "memoId"
     }
 }

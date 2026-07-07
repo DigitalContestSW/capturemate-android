@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -5,8 +7,6 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
-<<<<<<< Updated upstream
-=======
 val localProperties = Properties().apply {
     val file = rootProject.file("local.properties")
     if (file.exists()) {
@@ -19,15 +19,17 @@ val googleWebClientId = providers.gradleProperty("GOOGLE_WEB_CLIENT_ID")
     .orElse(localProperties.getProperty("GOOGLE_WEB_CLIENT_ID", ""))
     .get()
 
-val naverMapNcpKeyId = providers.gradleProperty("NAVER_MAP_NCP_KEY_ID")
+val configuredNaverMapNcpKeyId = providers.gradleProperty("NAVER_MAP_NCP_KEY_ID")
     .orElse(providers.environmentVariable("NAVER_MAP_NCP_KEY_ID"))
     .orElse(localProperties.getProperty("NAVER_MAP_NCP_KEY_ID", ""))
     .get()
 
-val naverMapClientId = providers.gradleProperty("NAVER_MAP_CLIENT_ID")
+val legacyNaverMapClientId = providers.gradleProperty("NAVER_MAP_CLIENT_ID")
     .orElse(providers.environmentVariable("NAVER_MAP_CLIENT_ID"))
     .orElse(localProperties.getProperty("NAVER_MAP_CLIENT_ID", ""))
     .get()
+
+val naverMapNcpKeyId = configuredNaverMapNcpKeyId.ifBlank { legacyNaverMapClientId }
 
 val captureMateAiBaseUrl = providers.gradleProperty("CAPTUREMATE_AI_BASE_URL")
     .orElse(providers.environmentVariable("CAPTUREMATE_AI_BASE_URL"))
@@ -38,7 +40,6 @@ val captureMateAiBaseUrl = providers.gradleProperty("CAPTUREMATE_AI_BASE_URL")
 fun String.asBuildConfigString(): String =
     "\"" + replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
->>>>>>> Stashed changes
 android {
     namespace = "com.capturemate.app"
     compileSdk {
@@ -55,15 +56,10 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-<<<<<<< Updated upstream
-        buildConfigField("String", "CAPTUREMATE_AI_BASE_URL", "\"http://10.0.2.2:8001/\"")
-=======
         buildConfigField("String", "CAPTUREMATE_AI_BASE_URL", captureMateAiBaseUrl.asBuildConfigString())
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", googleWebClientId.asBuildConfigString())
         buildConfigField("String", "NAVER_MAP_NCP_KEY_ID", naverMapNcpKeyId.asBuildConfigString())
-        buildConfigField("String", "NAVER_MAP_CLIENT_ID", naverMapClientId.asBuildConfigString())
-        manifestPlaceholders["NAVER_MAP_CLIENT_ID"] = naverMapClientId
->>>>>>> Stashed changes
+        manifestPlaceholders["NAVER_MAP_NCP_KEY_ID"] = naverMapNcpKeyId
     }
 
     buildTypes {
@@ -99,6 +95,7 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.androidx.security.crypto)
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.google.identity.googleid)
@@ -110,10 +107,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.mlkit.text.recognition)
     implementation(libs.mlkit.text.recognition.korean)
-<<<<<<< Updated upstream
-=======
     implementation(libs.naver.map)
->>>>>>> Stashed changes
     ksp(libs.androidx.room.compiler)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
