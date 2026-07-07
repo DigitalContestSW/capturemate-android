@@ -13,6 +13,9 @@ interface CaptureDao {
     @Query("SELECT * FROM captures ORDER BY capturedAt DESC")
     fun observeCaptures(): Flow<List<CaptureEntity>>
 
+    @Query("SELECT * FROM captures WHERE id = :id LIMIT 1")
+    fun observeCaptureById(id: String): Flow<CaptureEntity?>
+
     @Query("SELECT * FROM memos WHERE status = 'Saved' ORDER BY createdAt DESC")
     fun observeMemos(): Flow<List<MemoEntity>>
 

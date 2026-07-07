@@ -30,8 +30,6 @@ import com.capturemate.app.data.local.entity.StudyItemEntity
         StudyItemEntity::class,
         LifeInfoItemEntity::class,
         ScheduleItemEntity::class,
-    ],
-    version = 3,
         RestaurantMemoEntity::class,
         RestaurantMenuEntity::class,
         RestaurantTagEntity::class,
@@ -40,7 +38,7 @@ import com.capturemate.app.data.local.entity.StudyItemEntity
         RestaurantGroupEntity::class,
         RestaurantGroupMemberEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)

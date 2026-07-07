@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.capturemate.app.BuildConfig
 import com.capturemate.app.core.ai.MlKitOcrTextExtractor
 import com.capturemate.app.core.ai.OcrTextExtractor
+import com.capturemate.app.core.auth.GoogleSignInClient
 import com.capturemate.app.core.calendar.GoogleCalendarClient
 import com.capturemate.app.core.privacy.SensitiveTextMasker
 import com.capturemate.app.data.local.AuthSessionStore
