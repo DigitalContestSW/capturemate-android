@@ -1,8 +1,6 @@
 package com.capturemate.app.feature.memo
 
 import android.app.Activity
-import android.graphics.BitmapFactory
-import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -42,7 +40,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -56,6 +53,7 @@ import com.capturemate.app.data.local.entity.StudyItemEntity
 import com.capturemate.app.domain.repository.CaptureRepository
 import com.capturemate.app.feature.common.categoryGlyph
 import com.capturemate.app.feature.common.categoryLabel
+import com.capturemate.app.feature.common.rememberLocalBitmap
 import com.capturemate.app.ui.theme.CaptureBackground
 import com.capturemate.app.ui.theme.CaptureBorder
 import com.capturemate.app.ui.theme.CaptureDestructive
@@ -66,8 +64,6 @@ import com.capturemate.app.ui.theme.CaptureSurface
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 private val reviewDayOptions = listOf(3, 7, 14, 30)
 
@@ -136,9 +132,16 @@ fun MemoDetailRoute(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         val scheduleItem = state.scheduleItem
+                        val studyItem = state.studyItem
+                        val lifeInfoItem = state.lifeInfoItem
                         val capture = state.capture
                         when {
-                            scheduleItem != null -> ScreenshotStrip(screenshotUris = scheduleItem.screenshotUris)
+                            scheduleItem != null && scheduleItem.screenshotUris.isNotEmpty() ->
+                                ScreenshotStrip(screenshotUris = scheduleItem.screenshotUris)
+                            studyItem != null && studyItem.screenshotUris.isNotEmpty() ->
+                                ScreenshotStrip(screenshotUris = studyItem.screenshotUris)
+                            lifeInfoItem != null && lifeInfoItem.screenshotUris.isNotEmpty() ->
+                                ScreenshotStrip(screenshotUris = lifeInfoItem.screenshotUris)
                             capture != null -> ScreenshotStrip(screenshotUris = listOf(capture.localImageUri))
                         }
 
@@ -629,20 +632,7 @@ private fun ScreenshotStrip(screenshotUris: List<String>) {
 
 @Composable
 private fun ScreenshotPreview(uri: String?, label: String) {
-    val context = LocalContext.current
-    var image by remember(uri) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
-
-    LaunchedEffect(uri) {
-        image = uri?.let { value ->
-            withContext(Dispatchers.IO) {
-                runCatching {
-                    context.contentResolver.openInputStream(Uri.parse(value))?.use { input ->
-                        BitmapFactory.decodeStream(input)?.asImageBitmap()
-                    }
-                }.getOrNull()
-            }
-        }
-    }
+    val bitmap = rememberLocalBitmap(uri)
 
     Box(
         modifier = Modifier
@@ -650,7 +640,6 @@ private fun ScreenshotPreview(uri: String?, label: String) {
             .background(CaptureMuted, RoundedCornerShape(16.dp)),
         contentAlignment = Alignment.Center,
     ) {
-        val bitmap = image
         if (bitmap != null) {
             Image(
                 bitmap = bitmap,

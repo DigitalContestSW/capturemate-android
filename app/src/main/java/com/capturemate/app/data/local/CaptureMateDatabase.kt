@@ -38,7 +38,7 @@ import com.capturemate.app.data.local.entity.StudyItemEntity
         RestaurantGroupEntity::class,
         RestaurantGroupMemberEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -175,6 +175,13 @@ abstract class CaptureMateDatabase : RoomDatabase() {
                     )
                     """.trimIndent(),
                 )
+            }
+        }
+
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `study_items` ADD COLUMN `screenshotUris` TEXT NOT NULL DEFAULT '[]'")
+                db.execSQL("ALTER TABLE `life_info_items` ADD COLUMN `screenshotUris` TEXT NOT NULL DEFAULT '[]'")
             }
         }
     }

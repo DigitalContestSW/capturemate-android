@@ -42,9 +42,11 @@ import com.capturemate.app.feature.home.HomeRoute
 import com.capturemate.app.feature.home.HomeViewModel
 import com.capturemate.app.feature.home.HomeViewModelFactory
 import com.capturemate.app.feature.home.LoginScreen
+import com.capturemate.app.feature.home.OnboardingRoute
 import com.capturemate.app.feature.home.SettingsRoute
 import com.capturemate.app.feature.memo.MemoDetailRoute
 import com.capturemate.app.feature.memo.MemoListRoute
+import com.capturemate.app.feature.memo.RemindersRoute
 import com.capturemate.app.feature.restaurant.RestaurantDetailRoute
 import com.capturemate.app.feature.restaurant.RestaurantGroupDetailRoute
 import com.capturemate.app.feature.restaurant.RestaurantMapRoute
@@ -86,6 +88,7 @@ class MainActivity : FragmentActivity() {
                 var selectedRestaurantMemoId by remember { mutableStateOf<String?>(null) }
                 var selectedRestaurantGroupId by remember { mutableStateOf<String?>(null) }
                 var showRestaurantMap by remember { mutableStateOf(false) }
+                var showReminders by remember { mutableStateOf(false) }
 
                 LaunchedEffect(pendingMemoIdFromNotification) {
                     pendingMemoIdFromNotification?.let { selectedMemoId = it }
@@ -107,6 +110,10 @@ class MainActivity : FragmentActivity() {
                             versionName = BuildConfig.VERSION_NAME,
                             onGoogleClick = { homeViewModel.signIn(context) },
                         )
+                    }
+
+                    !homeUiState.onboardingCompleted -> {
+                        OnboardingRoute(onDone = { homeViewModel.completeOnboarding() })
                     }
 
                     memoId != null -> {
@@ -141,6 +148,18 @@ class MainActivity : FragmentActivity() {
                             repository = repository,
                             onRestaurantClick = { selectedRestaurantMemoId = it },
                             onGroupClick = { selectedRestaurantGroupId = it },
+                        )
+                    }
+
+                    showReminders -> {
+                        BackHandler { showReminders = false }
+                        RemindersRoute(
+                            repository = repository,
+                            onBack = { showReminders = false },
+                            onMemoClick = {
+                                showReminders = false
+                                selectedMemoId = it
+                            },
                         )
                     }
 
@@ -194,6 +213,7 @@ class MainActivity : FragmentActivity() {
                                     Tab.Settings -> SettingsRoute(
                                         session = session,
                                         onSignOut = { homeViewModel.signOut() },
+                                        onReminders = { showReminders = true },
                                     )
                                 }
                             }

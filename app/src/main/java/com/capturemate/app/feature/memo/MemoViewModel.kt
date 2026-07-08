@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.concurrent.TimeUnit
 
 class MemoViewModel(
     private val repository: CaptureRepository,
@@ -33,19 +34,105 @@ class MemoViewModel(
     private val _detailState = MutableStateFlow(MemoDetailUiState(isLoading = true))
     val detailState: StateFlow<MemoDetailUiState> = _detailState.asStateFlow()
 
+    private val _remindersState = MutableStateFlow<List<ReminderEntry>>(emptyList())
+    val remindersState: StateFlow<List<ReminderEntry>> = _remindersState.asStateFlow()
+
     private val _calendarEvents = MutableSharedFlow<GoogleCalendarUiEvent>()
     val calendarEvents: SharedFlow<GoogleCalendarUiEvent> = _calendarEvents
 
     init {
         viewModelScope.launch {
-            repository.observeMemos().collect { memos ->
-                _listState.value = MemoListUiState(memos = memos, isLoading = false)
-            }
+            combine(
+                repository.observeMemos(),
+                repository.observeCaptures(),
+                repository.observeScheduleItems(),
+                repository.observeLifeInfoItems(),
+                repository.observeStudyItems(),
+            ) { memos, captures, scheduleItems, lifeInfoItems, studyItems ->
+                val captureById = captures.associateBy { it.id }
+                val scheduleByMemoId = scheduleItems.associateBy { it.memoId }
+                val lifeInfoByMemoId = lifeInfoItems.associateBy { it.memoId }
+                val studyByMemoId = studyItems.associateBy { it.memoId }
+                val itemInfo = memos.associate { memo ->
+                    val schedule = scheduleByMemoId[memo.id]
+                    val lifeInfo = lifeInfoByMemoId[memo.id]
+                    val study = studyByMemoId[memo.id]
+                    val capture = memo.captureId?.let { captureById[it] }
+                    val screenshotUris = when {
+                        schedule != null && schedule.screenshotUris.isNotEmpty() -> schedule.screenshotUris
+                        study != null && study.screenshotUris.isNotEmpty() -> study.screenshotUris
+                        lifeInfo != null && lifeInfo.screenshotUris.isNotEmpty() -> lifeInfo.screenshotUris
+                        else -> emptyList()
+                    }
+                    val thumbnailUri: String?
+                    val screenshotCount: Int
+                    if (screenshotUris.isNotEmpty()) {
+                        thumbnailUri = screenshotUris.first()
+                        screenshotCount = screenshotUris.size
+                    } else {
+                        thumbnailUri = capture?.localImageUri
+                        screenshotCount = if (capture != null) 1 else 0
+                    }
+                    memo.id to MemoListItemInfo(
+                        thumbnailUri = thumbnailUri,
+                        screenshotCount = screenshotCount,
+                        deadlineAt = schedule?.deadlineAt ?: lifeInfo?.deadline,
+                    )
+                }
+                MemoListUiState(memos = memos, itemInfo = itemInfo, isLoading = false)
+            }.collect { _listState.value = it }
         }
         viewModelScope.launch {
             repository.observePendingMemos().collect { memos ->
                 _pendingListState.value = MemoListUiState(memos = memos, isLoading = false)
             }
+        }
+        viewModelScope.launch {
+            combine(
+                repository.observeMemos(),
+                repository.observeStudyItems(),
+                repository.observeLifeInfoItems(),
+                repository.observeScheduleItems(),
+            ) { memos, studyItems, lifeInfoItems, scheduleItems ->
+                val memoById = memos.associateBy { it.id }
+                val now = System.currentTimeMillis()
+                val entries = mutableListOf<ReminderEntry>()
+
+                studyItems.forEach { study ->
+                    val memo = memoById[study.memoId] ?: return@forEach
+                    val remindAt = study.createdAt + TimeUnit.DAYS.toMillis(study.selectedReviewDays.toLong())
+                    entries += ReminderEntry(memo.id, memo.title, memo.category, remindAt, "복습 리마인드")
+                }
+                lifeInfoItems.forEach { lifeInfo ->
+                    val memo = memoById[lifeInfo.memoId] ?: return@forEach
+                    when {
+                        lifeInfo.customReminderAt != null ->
+                            entries += ReminderEntry(
+                                memo.id,
+                                memo.title,
+                                memo.category,
+                                lifeInfo.customReminderAt,
+                                "리마인드 알림",
+                            )
+                        lifeInfo.deadlineReminderEnabled ->
+                            entries += ReminderEntry(
+                                memo.id,
+                                memo.title,
+                                memo.category,
+                                lifeInfo.deadline - TimeUnit.DAYS.toMillis(3),
+                                "마감 3일 전 알림",
+                            )
+                    }
+                }
+                scheduleItems.forEach { schedule ->
+                    val memo = memoById[schedule.memoId] ?: return@forEach
+                    schedule.customReminderAt?.let { at ->
+                        entries += ReminderEntry(memo.id, memo.title, memo.category, at, "리마인드 알림")
+                    }
+                }
+
+                entries.filter { it.remindAt >= now }.sortedBy { it.remindAt }
+            }.collect { _remindersState.value = it }
         }
     }
 

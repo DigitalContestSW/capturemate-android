@@ -13,5 +13,6 @@ data class LifeInfoItemEntity(
     val deadline: Long,
     val deadlineReminderEnabled: Boolean,
     val customReminderAt: Long?,
+    val screenshotUris: List<String> = emptyList(),
     val createdAt: Long,
 )

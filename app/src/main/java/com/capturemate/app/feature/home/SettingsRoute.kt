@@ -34,6 +34,7 @@ import com.capturemate.app.ui.theme.CaptureSurface
 fun SettingsRoute(
     session: AuthSession?,
     onSignOut: () -> Unit,
+    onReminders: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -54,6 +55,10 @@ fun SettingsRoute(
                 color = CaptureMutedForeground,
                 fontSize = 13.sp,
             )
+        }
+
+        SettingsSection(title = "알림") {
+            SettingsActionRow(label = "리마인드 예정 목록", destructive = false, onClick = onReminders)
         }
 
         SettingsSection(title = "계정") {
