@@ -33,7 +33,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.capturemate.app.feature.home.HomeRoute
 import com.capturemate.app.feature.home.HomeViewModel
 import com.capturemate.app.feature.home.HomeViewModelFactory
-import com.capturemate.app.feature.home.LoginScreen
+//import com.capturemate.app.feature.home.LoginScreen
 import com.capturemate.app.feature.home.SettingsRoute
 import com.capturemate.app.feature.memo.MemoDetailRoute
 import com.capturemate.app.feature.memo.MemoListRoute
@@ -87,6 +87,7 @@ class MainActivity : ComponentActivity() {
                         Box(modifier = Modifier.fillMaxWidth())
                     }
 
+<<<<<<< Updated upstream
 //                    session == null -> {
 //                        LoginScreen(
 //                            isLoading = homeUiState.isLoading,
@@ -95,6 +96,16 @@ class MainActivity : ComponentActivity() {
 //                            onGoogleClick = { homeViewModel.signIn(context) },
 //                        )
 //                    }
+=======
+                    /*session == null -> {
+                        LoginScreen(
+                            isLoading = homeUiState.isLoading,
+                            errorMessage = homeUiState.errorMessage,
+                            versionName = BuildConfig.VERSION_NAME,
+                            onGoogleClick = { homeViewModel.signIn(context) },
+                        )
+                    }*/
+>>>>>>> Stashed changes
 
                     memoId != null -> {
                         BackHandler { selectedMemoId = null }
