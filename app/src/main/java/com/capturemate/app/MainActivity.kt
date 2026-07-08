@@ -9,24 +9,32 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -40,9 +48,13 @@ import com.capturemate.app.feature.memo.MemoListRoute
 import com.capturemate.app.feature.restaurant.RestaurantDetailRoute
 import com.capturemate.app.feature.restaurant.RestaurantGroupDetailRoute
 import com.capturemate.app.feature.restaurant.RestaurantMapRoute
+import com.capturemate.app.ui.theme.CaptureBorder
+import com.capturemate.app.ui.theme.CaptureInk
 import com.capturemate.app.ui.theme.CaptureMateTheme
+import com.capturemate.app.ui.theme.CaptureMutedForeground
+import com.capturemate.app.ui.theme.CaptureSurface
 
-private enum class Tab { Home, MemoList, Restaurant, Settings }
+private enum class Tab { Home, MemoList, Settings }
 
 class MainActivity : FragmentActivity() {
 
@@ -73,6 +85,7 @@ class MainActivity : FragmentActivity() {
                 var selectedMemoId by remember { mutableStateOf(pendingMemoIdFromNotification) }
                 var selectedRestaurantMemoId by remember { mutableStateOf<String?>(null) }
                 var selectedRestaurantGroupId by remember { mutableStateOf<String?>(null) }
+                var showRestaurantMap by remember { mutableStateOf(false) }
 
                 LaunchedEffect(pendingMemoIdFromNotification) {
                     pendingMemoIdFromNotification?.let { selectedMemoId = it }
@@ -101,6 +114,7 @@ class MainActivity : FragmentActivity() {
                         MemoDetailRoute(
                             memoId = memoId,
                             repository = repository,
+                            onBack = { selectedMemoId = null },
                         )
                     }
 
@@ -121,29 +135,50 @@ class MainActivity : FragmentActivity() {
                         )
                     }
 
+                    showRestaurantMap -> {
+                        BackHandler { showRestaurantMap = false }
+                        RestaurantMapRoute(
+                            repository = repository,
+                            onRestaurantClick = { selectedRestaurantMemoId = it },
+                            onGroupClick = { selectedRestaurantGroupId = it },
+                        )
+                    }
+
                     else -> {
                         var selectedTab by remember { mutableStateOf(Tab.Home) }
 
                         Scaffold(
                             bottomBar = {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .navigationBarsPadding()
-                                        .padding(12.dp),
-                                    horizontalArrangement = Arrangement.SpaceEvenly,
-                                ) {
-                                    TextButton(onClick = { selectedTab = Tab.Home }) {
-                                        Text(text = "홈")
-                                    }
-                                    TextButton(onClick = { selectedTab = Tab.MemoList }) {
-                                        Text(text = "메모")
-                                    }
-                                    TextButton(onClick = { selectedTab = Tab.Restaurant }) {
-                                        Text(text = "맛집")
-                                    }
-                                    TextButton(onClick = { selectedTab = Tab.Settings }) {
-                                        Text(text = "설정")
+                                Column(modifier = Modifier.background(CaptureSurface)) {
+                                    HorizontalDivider(color = CaptureBorder)
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .navigationBarsPadding()
+                                            .padding(vertical = 6.dp),
+                                        horizontalArrangement = Arrangement.SpaceEvenly,
+                                    ) {
+                                        BottomNavItem(
+                                            glyph = "⌂",
+                                            label = "홈",
+                                            selected = selectedTab == Tab.Home,
+                                            onClick = { selectedTab = Tab.Home },
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                        BottomNavItem(
+                                            glyph = "▣",
+                                            label = "메모함",
+                                            selected = selectedTab == Tab.MemoList,
+                                            onClick = { selectedTab = Tab.MemoList },
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                        BottomNavItem(
+                                            glyph = "⚙",
+                                            label = "설정",
+                                            selected = selectedTab == Tab.Settings,
+                                            onClick = { selectedTab = Tab.Settings },
+                                            modifier = Modifier.weight(1f),
+                                        )
                                     }
                                 }
                             },
@@ -154,11 +189,7 @@ class MainActivity : FragmentActivity() {
                                     Tab.MemoList -> MemoListRoute(
                                         repository = repository,
                                         onMemoClick = { selectedMemoId = it },
-                                    )
-                                    Tab.Restaurant -> RestaurantMapRoute(
-                                        repository = repository,
-                                        onRestaurantClick = { selectedRestaurantMemoId = it },
-                                        onGroupClick = { selectedRestaurantGroupId = it },
+                                        onOpenRestaurantMap = { showRestaurantMap = true },
                                     )
                                     Tab.Settings -> SettingsRoute(
                                         session = session,
@@ -194,5 +225,34 @@ class MainActivity : FragmentActivity() {
 
     companion object {
         const val EXTRA_MEMO_ID = "memoId"
+    }
+}
+
+@Composable
+private fun BottomNavItem(
+    glyph: String,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val color = if (selected) CaptureInk else CaptureMutedForeground
+    Surface(
+        onClick = onClick,
+        modifier = modifier,
+        color = Color.Transparent,
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(text = glyph, color = color, fontSize = 20.sp)
+            Text(
+                text = label,
+                color = color,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
     }
 }
