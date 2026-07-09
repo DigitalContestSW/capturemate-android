@@ -13,6 +13,8 @@ import com.capturemate.app.data.local.CaptureMateDatabase
 import com.capturemate.app.data.local.CaptureMateDatabase.Companion.MIGRATION_1_2
 import com.capturemate.app.data.local.CaptureMateDatabase.Companion.MIGRATION_2_3
 import com.capturemate.app.data.local.CaptureMateDatabase.Companion.MIGRATION_3_4
+import com.capturemate.app.data.local.CaptureMateDatabase.Companion.MIGRATION_4_5
+import com.capturemate.app.data.local.CaptureMateDatabase.Companion.MIGRATION_5_6
 import com.capturemate.app.data.remote.CaptureMateApi
 import com.capturemate.app.data.repository.DefaultAuthRepository
 import com.capturemate.app.data.repository.DefaultCaptureRepository
@@ -34,7 +36,7 @@ class AppContainer(context: Context) {
             appContext,
             CaptureMateDatabase::class.java,
             "capturemate.db",
-        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
 
         if (BuildConfig.DEBUG) {
             builder

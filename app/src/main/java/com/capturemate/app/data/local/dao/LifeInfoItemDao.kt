@@ -12,6 +12,9 @@ interface LifeInfoItemDao {
     @Query("SELECT * FROM life_info_items WHERE memoId = :memoId LIMIT 1")
     fun observeByMemoId(memoId: String): Flow<LifeInfoItemEntity?>
 
+    @Query("SELECT * FROM life_info_items")
+    fun observeAll(): Flow<List<LifeInfoItemEntity>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(item: LifeInfoItemEntity)
 

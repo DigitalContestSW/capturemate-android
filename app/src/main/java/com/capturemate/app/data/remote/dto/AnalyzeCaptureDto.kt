@@ -26,6 +26,7 @@ data class AnalyzeCaptureResponse(
 data class StudyDetailDto(
     val keyPoints: List<String>,
     val recommendedReviewDays: Int = 3,
+    val screenshotUris: List<String> = emptyList(),
 )
 
 @Serializable
@@ -43,6 +44,7 @@ data class LifeInfoDetailDto(
     val target: String,
     val applicationMethod: String,
     val deadline: Long,
+    val screenshotUris: List<String> = emptyList(),
 )
 
 @Serializable

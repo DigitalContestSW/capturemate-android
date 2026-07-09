@@ -12,6 +12,9 @@ interface ScheduleItemDao {
     @Query("SELECT * FROM schedule_items WHERE memoId = :memoId LIMIT 1")
     fun observeByMemoId(memoId: String): Flow<ScheduleItemEntity?>
 
+    @Query("SELECT * FROM schedule_items")
+    fun observeAll(): Flow<List<ScheduleItemEntity>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(item: ScheduleItemEntity)
 

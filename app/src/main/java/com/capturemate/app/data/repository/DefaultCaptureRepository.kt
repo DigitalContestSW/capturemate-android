@@ -77,11 +77,17 @@ class DefaultCaptureRepository(
     override fun observeStudyItem(memoId: String): Flow<StudyItemEntity?> =
         studyItemDao.observeByMemoId(memoId)
 
+    override fun observeStudyItems(): Flow<List<StudyItemEntity>> = studyItemDao.observeAll()
+
     override fun observeLifeInfoItem(memoId: String): Flow<LifeInfoItemEntity?> =
         lifeInfoItemDao.observeByMemoId(memoId)
 
+    override fun observeLifeInfoItems(): Flow<List<LifeInfoItemEntity>> = lifeInfoItemDao.observeAll()
+
     override fun observeScheduleItem(memoId: String): Flow<ScheduleItemEntity?> =
         scheduleItemDao.observeByMemoId(memoId)
+
+    override fun observeScheduleItems(): Flow<List<ScheduleItemEntity>> = scheduleItemDao.observeAll()
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun observeRestaurantMemoByMemoId(memoId: String): Flow<RestaurantMemo?> =
         restaurantMemoDao.observeRestaurantMemoByMemoId(memoId).flatMapLatest { restaurant ->
@@ -237,6 +243,7 @@ class DefaultCaptureRepository(
                             memoId = memo.id,
                             keyPoints = studyDetail.keyPoints,
                             selectedReviewDays = studyDetail.recommendedReviewDays,
+                            screenshotUris = studyDetail.screenshotUris,
                             createdAt = now,
                         ),
                     )
@@ -254,6 +261,7 @@ class DefaultCaptureRepository(
                             deadline = lifeInfoDetail.deadline,
                             deadlineReminderEnabled = false,
                             customReminderAt = null,
+                            screenshotUris = lifeInfoDetail.screenshotUris,
                             createdAt = now,
                         ),
                     )
@@ -303,12 +311,6 @@ class DefaultCaptureRepository(
 
     override suspend fun confirmMemo(memoId: String) {
         captureDao.updateMemoStatus(memoId, MemoStatus.Saved.name)
-
-        val memo = captureDao.observeMemoById(memoId).first() ?: return
-        val studyItem = studyItemDao.observeByMemoId(memoId).first()
-        if (studyItem != null) {
-            scheduleStudyReminder(memo, studyItem.selectedReviewDays)
-        }
     }
 
     override suspend fun deleteMemo(memoId: String) {
