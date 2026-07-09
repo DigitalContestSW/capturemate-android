@@ -1,4 +1,4 @@
-package com.capturemate.app.data.repository
+﻿package com.capturemate.app.data.repository
 
 import android.content.Context
 import android.content.Intent
@@ -121,8 +121,6 @@ class DefaultCaptureRepository(
 
     override suspend fun createDebugRestaurantPlace() {
         val now = System.currentTimeMillis()
-<<<<<<< Updated upstream
-=======
         debugRestaurantSeeds().forEach { seed ->
             val memo = MemoEntity(
                 id = seed.memoId,
@@ -214,90 +212,6 @@ class DefaultCaptureRepository(
                 },
             )
         }
-        return
->>>>>>> Stashed changes
-        val memo = MemoEntity(
-            id = DEBUG_RESTAURANT_MEMO_ID,
-            captureId = "debug-restaurant-capture-baeksogjeong",
-            serverMemoId = null,
-            title = "백소정 안암본점",
-            summary = "안암역 근처 돈카츠, 마제소바, 냉소바 메뉴가 있는 실제 매장입니다.",
-            category = CaptureCategory.Restaurant.name,
-            recommendedAction = "네이버맵 핀 표시 테스트",
-            reminderAt = null,
-            status = MemoStatus.Saved.name,
-            createdAt = now,
-            updatedAt = now,
-        )
-        captureDao.upsertMemo(memo)
-
-        restaurantMemoDao.upsertRestaurantAnalysis(
-            restaurant = RestaurantMemoEntity(
-                id = DEBUG_RESTAURANT_ID,
-                memoId = memo.id,
-                captureId = memo.captureId,
-                name = memo.title,
-                summary = memo.summary,
-                address = "서울 성북구 안암동5가",
-                roadAddress = "서울 성북구 고려대로24길 6",
-                neighborhood = "안암동",
-                latitude = 37.5876985082328,
-                longitude = 127.029404929757,
-                mapProvider = "naver",
-                mapProviderPlaceId = "debug-baeksogjeong-anam",
-                estimatedPricePerPersonMin = 10000,
-                estimatedPricePerPersonMax = 16000,
-                confidence = 1.0,
-                needsUserReview = false,
-                createdAt = now,
-                updatedAt = now,
-            ),
-            menus = listOf(
-                RestaurantMenuEntity(
-                    id = "$DEBUG_RESTAURANT_ID-menu-1",
-                    restaurantMemoId = DEBUG_RESTAURANT_ID,
-                    name = "돈카츠",
-                    price = null,
-                    currency = "KRW",
-                    sortOrder = 0,
-                ),
-                RestaurantMenuEntity(
-                    id = "$DEBUG_RESTAURANT_ID-menu-2",
-                    restaurantMemoId = DEBUG_RESTAURANT_ID,
-                    name = "마제소바",
-                    price = null,
-                    currency = "KRW",
-                    sortOrder = 1,
-                ),
-            ),
-            tags = listOf(
-                RestaurantTagEntity(
-                    id = "$DEBUG_RESTAURANT_ID-tag-1",
-                    restaurantMemoId = DEBUG_RESTAURANT_ID,
-                    name = "돈카츠",
-                ),
-                RestaurantTagEntity(
-                    id = "$DEBUG_RESTAURANT_ID-tag-2",
-                    restaurantMemoId = DEBUG_RESTAURANT_ID,
-                    name = "안암",
-                ),
-            ),
-            features = emptyList(),
-            actions = emptyList(),
-            group = RestaurantGroupEntity(
-                id = "anam-restaurant",
-                title = "안암동 맛집",
-                neighborhood = "안암동",
-                representativeLatitude = 37.5876985082328,
-                representativeLongitude = 127.029404929757,
-                createdAt = now,
-                updatedAt = now,
-            ),
-            groupMember = RestaurantGroupMemberEntity(
-                groupId = "anam-restaurant",
-                restaurantMemoId = DEBUG_RESTAURANT_ID,
-            ),
-        )
     }
 
     override suspend fun analyzeAndCreateMemo(captureId: String, maskedText: String): MemoEntity {
@@ -437,7 +351,7 @@ class DefaultCaptureRepository(
             context = appContext,
             workName = workName,
             memoId = memo.id,
-            title = "마감이 3일 남았어요",
+            title = "留덇컧??3???⑥븯?댁슂",
             body = memo.title,
             triggerAtMillis = triggerAtMillis,
         )
@@ -457,7 +371,7 @@ class DefaultCaptureRepository(
             context = appContext,
             workName = workName,
             memoId = memo.id,
-            title = "리마인드 알림",
+            title = "由щ쭏?몃뱶 ?뚮┝",
             body = memo.title,
             triggerAtMillis = at,
         )
@@ -477,7 +391,7 @@ class DefaultCaptureRepository(
             context = appContext,
             workName = workName,
             memoId = memo.id,
-            title = "일정 리마인드",
+            title = "?쇱젙 由щ쭏?몃뱶",
             body = memo.title,
             triggerAtMillis = at,
         )
@@ -577,7 +491,7 @@ class DefaultCaptureRepository(
         val groupId = detail.group?.id
             ?: neighborhood?.let { slugify("$it-restaurant") }
         val groupTitle = detail.group?.title
-            ?: neighborhood?.let { "$it 맛집" }
+            ?: neighborhood?.let { "$it 留쏆쭛" }
 
         val restaurantEntity = RestaurantMemoEntity(
             id = restaurantMemoId,
@@ -670,7 +584,7 @@ class DefaultCaptureRepository(
         if (value.isNullOrBlank()) return null
         return value.split(" ")
             .firstOrNull { token ->
-                token.endsWith("동") || token.endsWith("가") || token.endsWith("읍") ||
+                token.endsWith("동") || token.endsWith("가") || token.endsWith("구") ||
                     token.endsWith("면") || token.endsWith("리")
             }
     }
@@ -690,10 +604,7 @@ class DefaultCaptureRepository(
         const val DEBUG_RESTAURANT_MEMO_ID = "debug-memo-baeksogjeong-anam"
         const val DEBUG_RESTAURANT_ID = "debug-restaurant-baeksogjeong-anam"
     }
-<<<<<<< Updated upstream
-=======
     private fun scheduleCustomReminderWorkName(memoId: String) = "schedule_custom_reminder_$memoId"
->>>>>>> Stashed changes
 }
 
 private fun debugRestaurantSeeds(): List<DebugRestaurantSeed> =
@@ -703,7 +614,7 @@ private fun debugRestaurantSeeds(): List<DebugRestaurantSeed> =
             restaurantMemoId = "debug-restaurant-baeksogjeong-anam",
             captureId = "debug-restaurant-capture-baeksogjeong",
             name = "백소정 안암본점",
-            summary = "안암역 근처 돈카츠와 마제소바를 함께 저장한 실제 장소 스크린샷 케이스입니다.",
+            summary = "안암 근처 돈카츠와 마제소바를 함께 저장한 실제 장소 스크린샷 케이스입니다.",
             memoRecommendedAction = "지도에서 위치를 확인하고 점심 후보로 저장",
             address = "서울 성북구 안암동5가",
             roadAddress = "서울 성북구 고려대로24길 6",
@@ -721,10 +632,10 @@ private fun debugRestaurantSeeds(): List<DebugRestaurantSeed> =
                 DebugRestaurantMenu("냉소바", 10000),
             ),
             tags = listOf("돈카츠", "마제소바", "안암"),
-            features = listOf("대학가 점심 식사에 적합", "메뉴와 위치 정보가 모두 있는 OCR 케이스"),
+            features = listOf("대학생 점심 식사에 적합", "메뉴와 위치 정보가 모두 있는 OCR 케이스"),
             actions = listOf(
                 DebugRestaurantAction("visit_time", "점심 피크 전 방문", "12시 전 방문하면 대기 시간을 줄일 수 있습니다."),
-                DebugRestaurantAction("save", "안암동 그룹에 저장", "같은 동네 맛집이 여러 개 있을 때 그룹 카드로 묶이는지 확인합니다."),
+                DebugRestaurantAction("save", "안암동 그룹에 저장", "같은 동네 맛집을 여러 개 저장했을 때 그룹 카드로 묶이는지 확인합니다."),
             ),
             groupId = "anam-restaurant",
             groupTitle = "안암동 맛집",
@@ -750,10 +661,10 @@ private fun debugRestaurantSeeds(): List<DebugRestaurantSeed> =
                 DebugRestaurantMenu("육전", 17000),
                 DebugRestaurantMenu("비빔국수", 8000),
             ),
-            tags = listOf("한식", "안암", "저녁"),
-            features = listOf("같은 동네에 2개 이상 저장되는 그룹 테스트용"),
+            tags = listOf("한식", "안암", "대화"),
+            features = listOf("같은 동네에 2개 이상 저장된 그룹 테스트용"),
             actions = listOf(
-                DebugRestaurantAction("companion", "친구와 저녁 방문", "식사 메뉴 중심이라 여럿이 방문하기 좋습니다."),
+                DebugRestaurantAction("companion", "친구와 방문", "식사 메뉴 중심이라 여럿이 방문하기 좋습니다."),
             ),
             groupId = "anam-restaurant",
             groupTitle = "안암동 맛집",
@@ -763,7 +674,7 @@ private fun debugRestaurantSeeds(): List<DebugRestaurantSeed> =
             restaurantMemoId = "debug-restaurant-seongsu-onion",
             captureId = "debug-restaurant-capture-seongsu-onion",
             name = "카페 어니언 성수",
-            summary = "OCR 텍스트에 장소, 주소, 메뉴, 가격, 방문 추천 정보가 모두 포함된 풍부한 카페 케이스입니다.",
+            summary = "장소, 주소, 메뉴, 가격, 방문 추천 정보가 포함된 카페 케이스입니다.",
             memoRecommendedAction = "평일 오전 브런치 후보로 저장",
             address = "서울 성동구 성수동2가",
             roadAddress = "서울 성동구 아차산로9길 8",
@@ -783,9 +694,8 @@ private fun debugRestaurantSeeds(): List<DebugRestaurantSeed> =
             tags = listOf("카페", "브런치", "성수동", "데이트"),
             features = listOf("메뉴와 가격이 OCR에 모두 포함", "평일 오전 방문 추천", "브런치와 커피를 함께 저장"),
             actions = listOf(
-                DebugRestaurantAction("visit_time", "평일 오전 방문", "혼잡도를 피하려면 평일 오전을 우선 검토하세요."),
-                DebugRestaurantAction("budget", "1인 2만원 내외 예상", "음료와 베이커리를 함께 주문하는 경우를 고려했습니다."),
-                DebugRestaurantAction("companion", "데이트 또는 친구 약속", "카페 분위기와 브런치 메뉴가 약속 장소에 적합합니다."),
+                DebugRestaurantAction("visit_time", "평일 오전 방문", "주말을 피하려면 평일 오전을 우선 검토하세요."),
+                DebugRestaurantAction("budget", "1인 2만원 이내 예상", "음료와 베이커리를 함께 주문하는 경우를 고려했습니다."),
             ),
             groupId = "seongsu-restaurant",
             groupTitle = "성수동 맛집",
@@ -795,7 +705,7 @@ private fun debugRestaurantSeeds(): List<DebugRestaurantSeed> =
             restaurantMemoId = "debug-restaurant-seongsu-daelim",
             captureId = "debug-restaurant-capture-seongsu-daelim",
             name = "대림창고",
-            summary = "실제 지도 앱 장소 화면에서 추출될 법한 이름, 주소, 카테고리 중심 OCR 케이스입니다.",
+            summary = "지도 화면에서 추출한 장소명, 주소, 카테고리 중심 OCR 케이스입니다.",
             memoRecommendedAction = "성수동 그룹에서 카페 후보 비교",
             address = "서울 성동구 성수동2가",
             roadAddress = "서울 성동구 성수이로 78",
@@ -811,10 +721,10 @@ private fun debugRestaurantSeeds(): List<DebugRestaurantSeed> =
                 DebugRestaurantMenu("커피", null),
                 DebugRestaurantMenu("디저트", null),
             ),
-            tags = listOf("카페", "성수동", "지도스크린샷"),
-            features = listOf("장소 앱 스크린샷처럼 메뉴 가격 일부가 비어 있는 케이스", "성수동 그룹 두 번째 멤버"),
+            tags = listOf("카페", "성수동", "전시공간"),
+            features = listOf("메뉴 가격 일부가 비어 있는 케이스", "성수동 그룹 두 번째 멤버"),
             actions = listOf(
-                DebugRestaurantAction("map", "지도 앱에서 영업시간 확인", "OCR에 영업시간이 불완전할 수 있어 지도 앱 확인이 필요합니다."),
+                DebugRestaurantAction("map", "지도 앱에서 영업시간 확인", "OCR에 영업시간이 불완전할 수 있어 지도 확인이 필요합니다."),
             ),
             groupId = "seongsu-restaurant",
             groupTitle = "성수동 맛집",
@@ -824,7 +734,7 @@ private fun debugRestaurantSeeds(): List<DebugRestaurantSeed> =
             restaurantMemoId = "debug-restaurant-anguk-bagel",
             captureId = "debug-restaurant-capture-anguk-bagel",
             name = "런던베이글뮤지엄 안국",
-            summary = "OCR 텍스트에 상호명과 동네 정도만 있어 장소 확인이 필요한 불완전 정보 케이스입니다.",
+            summary = "상호명과 동네 정도만 있어 장소 확인이 필요한 불완전 정보 케이스입니다.",
             memoRecommendedAction = "방문 전 정확한 위치와 대기 정보를 확인",
             address = null,
             roadAddress = null,
@@ -839,7 +749,7 @@ private fun debugRestaurantSeeds(): List<DebugRestaurantSeed> =
             needsUserReview = true,
             menus = emptyList(),
             tags = listOf("베이글", "안국", "정보부족"),
-            features = listOf("가게 이름만 있는 OCR 결과", "좌표가 없어 지도에는 표시되지 않고 목록에만 남아야 함"),
+            features = listOf("가격 정보 없음", "좌표가 없어 지도에는 표시하지 않고 목록에만 유지"),
             actions = listOf(
                 DebugRestaurantAction("map", "장소 정보 확인 필요", "주소와 좌표가 없어 지도 검색으로 보강해야 합니다."),
             ),
@@ -851,10 +761,10 @@ private fun debugRestaurantSeeds(): List<DebugRestaurantSeed> =
             restaurantMemoId = "debug-restaurant-yeonnam-sushi",
             captureId = "debug-restaurant-capture-yeonnam-sushi",
             name = "연남 스시코우",
-            summary = "한 동네에 하나만 저장되어 그룹 카드가 아니라 개별 카드로 보여야 하는 케이스입니다.",
+            summary = "한 동네에 하나만 저장되어 그룹 카드가 아닌 개별 카드로 보이는 케이스입니다.",
             memoRecommendedAction = "연남동 단일 맛집 카드 표시 확인",
             address = "서울 마포구 연남동",
-            roadAddress = "서울 마포구 동교로38길 27",
+            roadAddress = "서울 마포구 동교로8길 27",
             neighborhood = "연남동",
             latitude = 37.56231,
             longitude = 126.92519,
@@ -867,10 +777,10 @@ private fun debugRestaurantSeeds(): List<DebugRestaurantSeed> =
                 DebugRestaurantMenu("런치 스시", 18000),
                 DebugRestaurantMenu("모둠 사시미", 35000),
             ),
-            tags = listOf("스시", "연남동", "단일동네"),
-            features = listOf("동네에 하나만 있을 때 그룹으로 묶이지 않는지 확인"),
+            tags = listOf("스시", "연남동", "일식"),
+            features = listOf("같은 동네가 하나만 있을 때 그룹으로 묶이지 않는지 확인"),
             actions = listOf(
-                DebugRestaurantAction("reservation", "저녁 예약 확인", "스시 메뉴는 예약 여부를 먼저 확인하는 편이 좋습니다."),
+                DebugRestaurantAction("reservation", "예약 가능 여부 확인", "스시 메뉴는 예약 여부를 먼저 확인하는 편이 좋습니다."),
             ),
             groupId = "yeonnam-restaurant",
             groupTitle = "연남동 맛집",

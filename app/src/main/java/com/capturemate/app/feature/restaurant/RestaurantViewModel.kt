@@ -33,11 +33,7 @@ class RestaurantViewModel(
             repository.observeRestaurantMapState().collect { state ->
                 if (
                     BuildConfig.DEBUG &&
-<<<<<<< Updated upstream
-                    state.restaurants.isEmpty() &&
-=======
                     state.restaurants.size < DEBUG_RESTAURANT_SEED_MIN_COUNT &&
->>>>>>> Stashed changes
                     !debugPlaceSeedRequested
                 ) {
                     debugPlaceSeedRequested = true

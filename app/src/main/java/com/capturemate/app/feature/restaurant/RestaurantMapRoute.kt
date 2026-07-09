@@ -2,10 +2,7 @@ package com.capturemate.app.feature.restaurant
 
 import android.view.View
 import android.view.ViewGroup
-<<<<<<< Updated upstream
-=======
 import android.view.MotionEvent
->>>>>>> Stashed changes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -189,10 +186,7 @@ private fun NaverRestaurantMapView(
     val mapFragmentTag = remember { "restaurant_naver_map_$mapContainerId" }
     val naverMapState = remember { mutableStateOf<NaverMap?>(null) }
     val markers = remember { mutableStateListOf<Marker>() }
-<<<<<<< Updated upstream
-=======
     val lastCameraFitKey = remember { mutableStateOf<String?>(null) }
->>>>>>> Stashed changes
     val places = restaurants.mapNotNull { restaurant ->
         val latitude = restaurant.latitude ?: return@mapNotNull null
         val longitude = restaurant.longitude ?: return@mapNotNull null
@@ -239,8 +233,6 @@ private fun NaverRestaurantMapView(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT,
                 )
-<<<<<<< Updated upstream
-=======
                 setOnTouchListener { view, event ->
                     when (event.actionMasked) {
                         MotionEvent.ACTION_DOWN,
@@ -254,7 +246,6 @@ private fun NaverRestaurantMapView(
                     }
                     false
                 }
->>>>>>> Stashed changes
                 post {
                     val fragmentManager = activity.supportFragmentManager
                     val existing = fragmentManager.findFragmentByTag(mapFragmentTag) as? MapFragment
@@ -265,35 +256,21 @@ private fun NaverRestaurantMapView(
                     }
                     mapFragment.getMapAsync { naverMap ->
                         naverMapState.value = naverMap
-<<<<<<< Updated upstream
-=======
                         val shouldFitCamera = lastCameraFitKey.value != cameraFitKey
->>>>>>> Stashed changes
                         naverMap.renderRestaurantMarkers(
                             places = places,
                             markers = markers,
                             onRestaurantClick = onRestaurantClick,
-<<<<<<< Updated upstream
-                        )
-=======
                             shouldFitCamera = shouldFitCamera,
                         )
                         if (shouldFitCamera) {
                             lastCameraFitKey.value = cameraFitKey
                         }
->>>>>>> Stashed changes
                     }
                 }
             }
         },
         update = {
-<<<<<<< Updated upstream
-            naverMapState.value?.renderRestaurantMarkers(
-                places = places,
-                markers = markers,
-                onRestaurantClick = onRestaurantClick,
-            )
-=======
             val shouldFitCamera = lastCameraFitKey.value != cameraFitKey
             val naverMap = naverMapState.value
             if (naverMap != null) {
@@ -307,7 +284,6 @@ private fun NaverRestaurantMapView(
                     lastCameraFitKey.value = cameraFitKey
                 }
             }
->>>>>>> Stashed changes
         },
     )
 }
@@ -316,20 +292,11 @@ private fun NaverMap.renderRestaurantMarkers(
     places: List<RestaurantMapPlace>,
     markers: MutableList<Marker>,
     onRestaurantClick: (String) -> Unit,
-<<<<<<< Updated upstream
-=======
     shouldFitCamera: Boolean,
->>>>>>> Stashed changes
 ) {
     markers.forEach { it.map = null }
     markers.clear()
 
-<<<<<<< Updated upstream
-    val first = places.firstOrNull() ?: return
-    moveCamera(CameraUpdate.scrollAndZoomTo(first.position, 15.0))
-
-=======
->>>>>>> Stashed changes
     places.forEach { place ->
         Marker().apply {
             position = place.position
@@ -342,14 +309,11 @@ private fun NaverMap.renderRestaurantMarkers(
             markers.add(this)
         }
     }
-<<<<<<< Updated upstream
-=======
 
     if (shouldFitCamera) {
         val latestPlace = places.firstOrNull() ?: return
         moveCamera(CameraUpdate.scrollAndZoomTo(latestPlace.position, 15.0))
     }
->>>>>>> Stashed changes
 }
 
 private data class RestaurantMapPlace(

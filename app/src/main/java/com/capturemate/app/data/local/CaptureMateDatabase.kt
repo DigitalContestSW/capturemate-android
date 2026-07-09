@@ -48,8 +48,6 @@ abstract class CaptureMateDatabase : RoomDatabase() {
     abstract fun lifeInfoItemDao(): LifeInfoItemDao
     abstract fun scheduleItemDao(): ScheduleItemDao
     abstract fun restaurantMemoDao(): RestaurantMemoDao
-<<<<<<< Updated upstream
-=======
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -212,5 +210,4 @@ private fun SupportSQLiteDatabase.hasColumn(tableName: String, columnName: Strin
         }
     }
     return false
->>>>>>> Stashed changes
 }
