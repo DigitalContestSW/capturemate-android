@@ -20,8 +20,11 @@ interface CaptureRepository {
     fun observePendingMemos(): Flow<List<MemoEntity>>
     fun observeMemoById(memoId: String): Flow<MemoEntity?>
     fun observeStudyItem(memoId: String): Flow<StudyItemEntity?>
+    fun observeStudyItems(): Flow<List<StudyItemEntity>>
     fun observeLifeInfoItem(memoId: String): Flow<LifeInfoItemEntity?>
+    fun observeLifeInfoItems(): Flow<List<LifeInfoItemEntity>>
     fun observeScheduleItem(memoId: String): Flow<ScheduleItemEntity?>
+    fun observeScheduleItems(): Flow<List<ScheduleItemEntity>>
     fun observeRestaurantMemoByMemoId(memoId: String): Flow<RestaurantMemo?>
     fun observeRestaurantMapState(): Flow<RestaurantMapState>
     fun observeRestaurantGroup(groupId: String): Flow<RestaurantGroup?>

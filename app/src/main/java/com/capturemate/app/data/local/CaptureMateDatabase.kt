@@ -7,12 +7,13 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.capturemate.app.data.local.dao.CaptureDao
 import com.capturemate.app.data.local.dao.LifeInfoItemDao
-import com.capturemate.app.data.local.dao.RestaurantMemoDao
 import com.capturemate.app.data.local.dao.ScheduleItemDao
+import com.capturemate.app.data.local.dao.RestaurantMemoDao
 import com.capturemate.app.data.local.dao.StudyItemDao
 import com.capturemate.app.data.local.entity.CaptureEntity
 import com.capturemate.app.data.local.entity.LifeInfoItemEntity
 import com.capturemate.app.data.local.entity.MemoEntity
+import com.capturemate.app.data.local.entity.ScheduleItemEntity
 import com.capturemate.app.data.local.entity.RestaurantFeatureEntity
 import com.capturemate.app.data.local.entity.RestaurantGroupEntity
 import com.capturemate.app.data.local.entity.RestaurantGroupMemberEntity
@@ -20,7 +21,6 @@ import com.capturemate.app.data.local.entity.RestaurantMemoEntity
 import com.capturemate.app.data.local.entity.RestaurantMenuEntity
 import com.capturemate.app.data.local.entity.RestaurantRecommendedActionEntity
 import com.capturemate.app.data.local.entity.RestaurantTagEntity
-import com.capturemate.app.data.local.entity.ScheduleItemEntity
 import com.capturemate.app.data.local.entity.StudyItemEntity
 
 @Database(
@@ -38,7 +38,7 @@ import com.capturemate.app.data.local.entity.StudyItemEntity
         RestaurantGroupEntity::class,
         RestaurantGroupMemberEntity::class,
     ],
-    version = 5,
+    version = 7,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -73,28 +73,8 @@ abstract class CaptureMateDatabase : RoomDatabase() {
 
         val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL(
-                    """
-                    CREATE TABLE IF NOT EXISTS `schedule_items` (
-                        `id` TEXT NOT NULL,
-                        `memoId` TEXT NOT NULL,
-                        `eventTitle` TEXT NOT NULL,
-                        `deadlineAt` INTEGER,
-                        `eventDateText` TEXT,
-                        `location` TEXT,
-                        `screenshotUris` TEXT NOT NULL,
-                        `customReminderAt` INTEGER,
-                        `createdAt` INTEGER NOT NULL,
-                        PRIMARY KEY(`id`)
-                    )
-                    """.trimIndent(),
-                )
-                if (!db.hasColumn("schedule_items", "googleCalendarEventId")) {
-                    db.execSQL("ALTER TABLE `schedule_items` ADD COLUMN `googleCalendarEventId` TEXT")
-                }
-                if (!db.hasColumn("schedule_items", "googleCalendarHtmlLink")) {
-                    db.execSQL("ALTER TABLE `schedule_items` ADD COLUMN `googleCalendarHtmlLink` TEXT")
-                }
+                db.execSQL("ALTER TABLE `schedule_items` ADD COLUMN `googleCalendarEventId` TEXT")
+                db.execSQL("ALTER TABLE `schedule_items` ADD COLUMN `googleCalendarHtmlLink` TEXT")
             }
         }
 
@@ -199,6 +179,19 @@ abstract class CaptureMateDatabase : RoomDatabase() {
         }
 
         val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `study_items` ADD COLUMN `screenshotUris` TEXT NOT NULL DEFAULT '[]'")
+                db.execSQL("ALTER TABLE `life_info_items` ADD COLUMN `screenshotUris` TEXT NOT NULL DEFAULT '[]'")
+            }
+        }
+
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `study_items` ADD COLUMN `reminderConfirmed` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        val MIGRATION_6_7 = object : Migration(6, 7) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 if (!db.hasColumn("restaurant_memos", "locationReminderEnabled")) {
                     db.execSQL(
