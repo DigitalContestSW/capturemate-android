@@ -10,6 +10,7 @@ val CaptureMuted = Color(0xFFF3F3F3)
 val CaptureMutedForeground = Color(0xFF888888)
 val CaptureBorder = Color(0x14000000)
 val CaptureDestructive = Color(0xFFE53E3E)
+val CaptureUrgentOrange = Color(0xFFF5A623)
 val CaptureOnDark = Color(0xFFFFFFFF)
 
 val CaptureDarkBackground = Color(0xFF121212)

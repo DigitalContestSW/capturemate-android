@@ -9,6 +9,7 @@ data class StudyItemEntity(
     val memoId: String,
     val keyPoints: List<String>,
     val selectedReviewDays: Int,
+    val reminderConfirmed: Boolean = false,
     val screenshotUris: List<String> = emptyList(),
     val createdAt: Long,
 )

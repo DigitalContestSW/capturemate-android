@@ -13,6 +13,12 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -20,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -30,26 +37,26 @@ import com.capturemate.app.ui.theme.CaptureMutedForeground
 import com.capturemate.app.ui.theme.CaptureSurface
 import kotlinx.coroutines.launch
 
-private data class OnboardingSlide(val emoji: String, val title: String, val desc: String)
+private data class OnboardingSlide(val icon: ImageVector, val title: String, val desc: String)
 
 private val OnboardingSlides = listOf(
     OnboardingSlide(
-        emoji = "🖼️",
+        icon = Icons.Filled.PhotoLibrary,
         title = "갤러리 속에 묻힌\n정보를 꺼내드려요",
         desc = "스크린샷으로 저장해 둔 정보들,\n기억은커녕 찾기도 어렵죠?",
     ),
     OnboardingSlide(
-        emoji = "🤖",
+        icon = Icons.Filled.SmartToy,
         title = "AI가 읽고\n메모로 만들어요",
         desc = "OCR로 텍스트를 추출하고\nAI가 핵심 정보만 골라 정리해요.",
     ),
     OnboardingSlide(
-        emoji = "🔔",
+        icon = Icons.Filled.Notifications,
         title = "잊을 만할 때\n다시 알려드려요",
         desc = "일정·마감·복습까지\n딱 그날 알림을 보내드려요.",
     ),
     OnboardingSlide(
-        emoji = "🔒",
+        icon = Icons.Filled.Lock,
         title = "개인정보를\n안전하게 지켜요",
         desc = "스크린샷은 기기 안에서만 처리돼요.\n외부 서버로 전송되지 않아요.",
     ),
@@ -66,6 +73,23 @@ fun OnboardingRoute(onDone: () -> Unit) {
             .fillMaxSize()
             .background(CaptureSurface),
     ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp, end = 20.dp),
+            horizontalArrangement = Arrangement.End,
+        ) {
+            Surface(onClick = onDone, color = CaptureSurface) {
+                Text(
+                    text = "건너뛰기",
+                    modifier = Modifier.padding(8.dp),
+                    color = CaptureMutedForeground,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.weight(1f),
@@ -78,7 +102,19 @@ fun OnboardingRoute(onDone: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                Text(text = slide.emoji, fontSize = 56.sp)
+                Box(
+                    modifier = Modifier
+                        .size(96.dp)
+                        .background(CaptureMuted, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = slide.icon,
+                        contentDescription = null,
+                        modifier = Modifier.size(44.dp),
+                        tint = CaptureInk,
+                    )
+                }
                 Text(
                     text = slide.title,
                     modifier = Modifier.padding(top = 20.dp),

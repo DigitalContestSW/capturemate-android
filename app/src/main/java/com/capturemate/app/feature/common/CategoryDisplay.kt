@@ -1,13 +1,22 @@
 package com.capturemate.app.feature.common
 
-/** [com.capturemate.app.domain.model.CaptureCategory] 이름(memo.category)에 대응하는 표시용 글리프/라벨. */
-fun categoryGlyph(category: String): String = when (category) {
-    "Schedule" -> "◷"
-    "Study" -> "◇"
-    "LifeInfo" -> "□"
-    "Restaurant" -> "⌖"
-    "Job" -> "▤"
-    else -> "•"
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Circle
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.Work
+import androidx.compose.ui.graphics.vector.ImageVector
+
+/** [com.capturemate.app.domain.model.CaptureCategory] 이름(memo.category)에 대응하는 표시용 아이콘/라벨. */
+fun categoryIcon(category: String): ImageVector = when (category) {
+    "Schedule" -> Icons.Filled.CalendarToday
+    "Study" -> Icons.Filled.School
+    "LifeInfo" -> Icons.Filled.Info
+    "Restaurant" -> Icons.Filled.Restaurant
+    "Job" -> Icons.Filled.Work
+    else -> Icons.Filled.Circle
 }
 
 fun categoryLabel(category: String): String = when (category) {

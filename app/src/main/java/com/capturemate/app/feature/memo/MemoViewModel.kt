@@ -6,19 +6,26 @@ import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.capturemate.app.domain.model.MemoStatus
 import com.capturemate.app.domain.repository.AddToGoogleCalendarResult
 import com.capturemate.app.domain.repository.CaptureRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import java.util.concurrent.TimeUnit
 
 class MemoViewModel(
@@ -36,6 +43,20 @@ class MemoViewModel(
 
     private val _remindersState = MutableStateFlow<List<ReminderEntry>>(emptyList())
     val remindersState: StateFlow<List<ReminderEntry>> = _remindersState.asStateFlow()
+
+    val urgentDeadlineState: StateFlow<UrgentDeadlineEntry?> = listState
+        .map { state ->
+            val today = Instant.now().atZone(ZoneId.systemDefault()).toLocalDate()
+            state.memos.mapNotNull { memo ->
+                if (memo.status != MemoStatus.Saved.name) return@mapNotNull null
+                val deadlineAt = state.itemInfo[memo.id]?.deadlineAt ?: return@mapNotNull null
+                val deadlineDate = Instant.ofEpochMilli(deadlineAt).atZone(ZoneId.systemDefault()).toLocalDate()
+                val dDay = ChronoUnit.DAYS.between(today, deadlineDate)
+                if (dDay < 0 || dDay > URGENT_DEADLINE_DAY_THRESHOLD) return@mapNotNull null
+                UrgentDeadlineEntry(memo.id, memo.title, deadlineAt, dDay)
+            }.minByOrNull { it.dDay }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val _calendarEvents = MutableSharedFlow<GoogleCalendarUiEvent>()
     val calendarEvents: SharedFlow<GoogleCalendarUiEvent> = _calendarEvents
@@ -73,10 +94,17 @@ class MemoViewModel(
                         thumbnailUri = capture?.localImageUri
                         screenshotCount = if (capture != null) 1 else 0
                     }
+                    val hasReminder = when {
+                        study != null -> study.reminderConfirmed
+                        lifeInfo != null -> lifeInfo.customReminderAt != null || lifeInfo.deadlineReminderEnabled
+                        schedule != null -> schedule.customReminderAt != null
+                        else -> false
+                    }
                     memo.id to MemoListItemInfo(
                         thumbnailUri = thumbnailUri,
                         screenshotCount = screenshotCount,
                         deadlineAt = schedule?.deadlineAt ?: lifeInfo?.deadline,
+                        hasReminder = hasReminder,
                     )
                 }
                 MemoListUiState(memos = memos, itemInfo = itemInfo, isLoading = false)
@@ -99,6 +127,7 @@ class MemoViewModel(
                 val entries = mutableListOf<ReminderEntry>()
 
                 studyItems.forEach { study ->
+                    if (!study.reminderConfirmed) return@forEach
                     val memo = memoById[study.memoId] ?: return@forEach
                     val remindAt = study.createdAt + TimeUnit.DAYS.toMillis(study.selectedReviewDays.toLong())
                     entries += ReminderEntry(memo.id, memo.title, memo.category, remindAt, "복습 리마인드")
@@ -262,6 +291,10 @@ class MemoViewModel(
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             return MemoViewModel(repository) as T
         }
+    }
+
+    private companion object {
+        const val URGENT_DEADLINE_DAY_THRESHOLD = 7L
     }
 }
 

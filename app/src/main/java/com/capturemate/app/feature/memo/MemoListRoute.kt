@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.lazy.LazyColumn
@@ -23,6 +24,20 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Assignment
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -37,17 +52,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.capturemate.app.data.local.entity.MemoEntity
 import com.capturemate.app.domain.repository.CaptureRepository
-import com.capturemate.app.feature.common.categoryGlyph
+import com.capturemate.app.feature.common.categoryIcon
 import com.capturemate.app.feature.common.categoryLabel
 import com.capturemate.app.feature.common.rememberLocalBitmap
 import com.capturemate.app.ui.theme.CaptureBackground
@@ -69,6 +85,12 @@ private enum class SortOption(val label: String) {
     Deadline("마감임박순"),
 }
 
+private enum class StatusFilter(val label: String) {
+    All("전체"),
+    HasReminder("리마인드 있음"),
+    HasDeadline("D-day 있음"),
+}
+
 private const val CATEGORY_ALL = "전체"
 private val CATEGORY_ORDER = listOf("Schedule", "Study", "LifeInfo", "Restaurant")
 
@@ -82,19 +104,25 @@ fun MemoListRoute(
     val state by viewModel.listState.collectAsState()
     var activeCategory by remember { mutableStateOf(CATEGORY_ALL) }
     var sort by remember { mutableStateOf(SortOption.Latest) }
+    var status by remember { mutableStateOf(StatusFilter.All) }
     var isGrid by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
 
-    val filtered = remember(state.memos, state.itemInfo, activeCategory, sort) {
+    val filtered = remember(state.memos, state.itemInfo, activeCategory, sort, status) {
         val byCategory = if (activeCategory == CATEGORY_ALL) {
             state.memos
         } else {
             state.memos.filter { it.category == activeCategory }
         }
+        val byStatus = when (status) {
+            StatusFilter.All -> byCategory
+            StatusFilter.HasReminder -> byCategory.filter { state.itemInfo[it.id]?.hasReminder == true }
+            StatusFilter.HasDeadline -> byCategory.filter { state.itemInfo[it.id]?.deadlineAt != null }
+        }
         when (sort) {
-            SortOption.Latest -> byCategory.sortedByDescending { it.createdAt }
-            SortOption.Oldest -> byCategory.sortedBy { it.createdAt }
-            SortOption.Deadline -> byCategory.sortedBy {
+            SortOption.Latest -> byStatus.sortedByDescending { it.createdAt }
+            SortOption.Oldest -> byStatus.sortedBy { it.createdAt }
+            SortOption.Deadline -> byStatus.sortedBy {
                 state.itemInfo[it.id]?.deadlineAt ?: Long.MAX_VALUE
             }
         }
@@ -133,6 +161,8 @@ fun MemoListRoute(
             FilterBar(
                 sort = sort,
                 onSortChange = { sort = it },
+                status = status,
+                onStatusChange = { status = it },
                 count = filtered.size,
                 isGrid = isGrid,
                 onToggleGrid = { isGrid = it },
@@ -148,13 +178,7 @@ fun MemoListRoute(
                 }
 
                 filtered.isEmpty() -> {
-                    Column(modifier = Modifier.fillMaxSize().padding(20.dp)) {
-                        Text(
-                            text = "아직 저장된 메모가 없습니다.",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = CaptureMutedForeground,
-                        )
-                    }
+                    EmptyMemoListState()
                 }
 
                 isGrid -> {
@@ -214,13 +238,24 @@ private fun MemoBoxHeader(totalCount: Int, weekCount: Int, onSearchClick: () -> 
                 shape = RoundedCornerShape(12.dp),
                 color = CaptureMuted,
             ) {
-                Text(
-                    text = "🔍 검색",
+                Row(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                    color = CaptureMutedForeground,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Search,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = CaptureMutedForeground,
+                    )
+                    Text(
+                        text = "검색",
+                        modifier = Modifier.padding(start = 4.dp),
+                        color = CaptureMutedForeground,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
             }
         }
 
@@ -285,10 +320,14 @@ private fun CategoryTabs(active: String, onSelect: (String) -> Unit) {
 private fun FilterBar(
     sort: SortOption,
     onSortChange: (SortOption) -> Unit,
+    status: StatusFilter,
+    onStatusChange: (StatusFilter) -> Unit,
     count: Int,
     isGrid: Boolean,
     onToggleGrid: (Boolean) -> Unit,
 ) {
+    var expanded by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -296,25 +335,63 @@ private fun FilterBar(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Surface(
-            onClick = {
-                val next = when (sort) {
-                    SortOption.Latest -> SortOption.Oldest
-                    SortOption.Oldest -> SortOption.Deadline
-                    SortOption.Deadline -> SortOption.Latest
+        Box {
+            Surface(
+                onClick = { expanded = true },
+                shape = RoundedCornerShape(999.dp),
+                color = CaptureMuted,
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.FilterList,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = CaptureMutedForeground,
+                    )
+                    Text(
+                        text = "${sort.label} · ${status.label}",
+                        modifier = Modifier.padding(start = 4.dp),
+                        color = CaptureMutedForeground,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Icon(
+                        imageVector = Icons.Filled.ExpandMore,
+                        contentDescription = null,
+                        modifier = Modifier.padding(start = 2.dp).size(16.dp),
+                        tint = CaptureMutedForeground,
+                    )
                 }
-                onSortChange(next)
-            },
-            shape = RoundedCornerShape(999.dp),
-            color = CaptureMuted,
-        ) {
-            Text(
-                text = sort.label,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                color = CaptureMutedForeground,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
+            }
+
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                FilterSectionLabel("정렬")
+                SortOption.entries.forEach { option ->
+                    FilterDropdownItem(
+                        label = option.label,
+                        selected = option == sort,
+                        onClick = {
+                            onSortChange(option)
+                            expanded = false
+                        },
+                    )
+                }
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = CaptureBorder)
+                FilterSectionLabel("상태")
+                StatusFilter.entries.forEach { option ->
+                    FilterDropdownItem(
+                        label = option.label,
+                        selected = option == status,
+                        onClick = {
+                            onStatusChange(option)
+                            expanded = false
+                        },
+                    )
+                }
+            }
         }
 
         Text(
@@ -331,14 +408,81 @@ private fun FilterBar(
                 .background(CaptureMuted, RoundedCornerShape(10.dp))
                 .padding(2.dp),
         ) {
-            ViewToggleButton(label = "☰", selected = !isGrid, onClick = { onToggleGrid(false) })
-            ViewToggleButton(label = "⊞", selected = isGrid, onClick = { onToggleGrid(true) })
+            ViewToggleButton(icon = Icons.AutoMirrored.Filled.List, selected = !isGrid, onClick = { onToggleGrid(false) })
+            ViewToggleButton(icon = Icons.Filled.GridView, selected = isGrid, onClick = { onToggleGrid(true) })
         }
     }
 }
 
 @Composable
-private fun ViewToggleButton(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun FilterSectionLabel(text: String) {
+    Text(
+        text = text,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+        color = CaptureMutedForeground,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.SemiBold,
+    )
+}
+
+@Composable
+private fun FilterDropdownItem(label: String, selected: Boolean, onClick: () -> Unit) {
+    DropdownMenuItem(
+        text = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(modifier = Modifier.width(18.dp)) {
+                    if (selected) {
+                        Icon(
+                            imageVector = Icons.Filled.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = CaptureInk,
+                        )
+                    }
+                }
+                Text(
+                    text = label,
+                    color = if (selected) CaptureInk else CaptureMutedForeground,
+                    fontSize = 14.sp,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                )
+            }
+        },
+        onClick = onClick,
+    )
+}
+
+@Composable
+private fun EmptyMemoListState() {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.Assignment,
+            contentDescription = null,
+            modifier = Modifier.size(40.dp),
+            tint = CaptureMutedForeground,
+        )
+        Text(
+            text = "아직 저장된 메모가 없어요",
+            modifier = Modifier.padding(top = 12.dp),
+            color = CaptureInk,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            text = "홈에서 AI가 분석한 메모를 저장해보세요.",
+            modifier = Modifier.padding(top = 4.dp),
+            color = CaptureMutedForeground,
+            fontSize = 13.sp,
+        )
+    }
+}
+
+@Composable
+private fun ViewToggleButton(icon: ImageVector, selected: Boolean, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         modifier = Modifier.size(28.dp),
@@ -346,10 +490,11 @@ private fun ViewToggleButton(label: String, selected: Boolean, onClick: () -> Un
         color = if (selected) CaptureSurface else CaptureMuted,
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Text(
-                text = label,
-                color = if (selected) CaptureInk else CaptureMutedForeground,
-                fontSize = 13.sp,
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(15.dp),
+                tint = if (selected) CaptureInk else CaptureMutedForeground,
             )
         }
     }
@@ -374,7 +519,7 @@ private fun MemoListRow(memo: MemoEntity, info: MemoListItemInfo?, onClick: () -
                 thumbnailUri = info?.thumbnailUri,
                 modifier = Modifier.size(52.dp),
                 shape = RoundedCornerShape(12.dp),
-                glyphFontSize = 20.sp,
+                iconSize = 22.dp,
             )
             Column(
                 modifier = Modifier
@@ -402,7 +547,12 @@ private fun MemoListRow(memo: MemoEntity, info: MemoListItemInfo?, onClick: () -
                     fontSize = 12.sp,
                 )
             }
-            Text(text = "›", color = CaptureBorder, fontSize = 22.sp)
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = CaptureBorder,
+            )
         }
     }
 }
@@ -424,7 +574,7 @@ private fun MemoGridCard(memo: MemoEntity, info: MemoListItemInfo?, onClick: () 
                     thumbnailUri = info?.thumbnailUri,
                     modifier = Modifier.fillMaxSize(),
                     shape = RoundedCornerShape(0.dp),
-                    glyphFontSize = 32.sp,
+                    iconSize = 36.dp,
                 )
                 info?.deadlineAt?.let { deadlineAt ->
                     DDayBadge(
@@ -480,7 +630,7 @@ private fun ThumbnailBox(
     thumbnailUri: String?,
     modifier: Modifier,
     shape: RoundedCornerShape,
-    glyphFontSize: TextUnit,
+    iconSize: Dp,
 ) {
     val bitmap = rememberLocalBitmap(thumbnailUri)
     Box(
@@ -497,7 +647,12 @@ private fun ThumbnailBox(
                 contentScale = ContentScale.Crop,
             )
         } else {
-            Text(text = categoryGlyph(category), fontSize = glyphFontSize)
+            Icon(
+                imageVector = categoryIcon(category),
+                contentDescription = null,
+                modifier = Modifier.size(iconSize),
+                tint = CaptureMutedForeground,
+            )
         }
     }
 }
@@ -511,8 +666,16 @@ private fun CategoryPill(category: String) {
         shape = RoundedCornerShape(999.dp),
         color = CaptureMuted,
     ) {
-        Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)) {
-            Text(text = categoryGlyph(category), fontSize = 9.sp)
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = categoryIcon(category),
+                contentDescription = null,
+                modifier = Modifier.size(9.dp),
+                tint = CaptureMutedForeground,
+            )
             Text(
                 text = categoryLabel(category),
                 modifier = Modifier.padding(start = 3.dp),
@@ -591,7 +754,12 @@ private fun MemoSearchScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Surface(onClick = onBack, color = CaptureSurface) {
-                Text(text = "‹", color = CaptureInk, fontSize = 26.sp, modifier = Modifier.padding(8.dp))
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "뒤로",
+                    modifier = Modifier.padding(8.dp).size(22.dp),
+                    tint = CaptureInk,
+                )
             }
             Surface(
                 modifier = Modifier

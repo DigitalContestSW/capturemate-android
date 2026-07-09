@@ -13,6 +13,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,40 +41,42 @@ fun SettingsRoute(
     onReminders: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(CaptureBackground),
-    ) {
+    Scaffold(modifier = modifier, containerColor = CaptureBackground) { innerPadding ->
         Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .background(CaptureSurface)
-                .padding(horizontal = 20.dp, vertical = 16.dp),
+                .fillMaxSize()
+                .padding(innerPadding),
         ) {
-            Text(text = "설정", color = CaptureInk, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Text(
-                text = "앱 동작 및 개인정보 설정",
-                modifier = Modifier.padding(top = 2.dp),
-                color = CaptureMutedForeground,
-                fontSize = 13.sp,
-            )
-        }
-
-        SettingsSection(title = "알림") {
-            SettingsActionRow(label = "리마인드 예정 목록", destructive = false, onClick = onReminders)
-        }
-
-        SettingsSection(title = "계정") {
-            if (session == null) {
-                SettingsRow(glyph = "•", label = "로그인 정보 없음", sub = "로그인 후 계정 정보가 표시돼요")
-            } else {
-                SettingsRow(
-                    glyph = (session.user.name?.firstOrNull() ?: session.user.email.first()).uppercase(),
-                    label = session.user.name ?: session.user.email,
-                    sub = session.user.email,
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(CaptureSurface)
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+            ) {
+                Text(text = "설정", color = CaptureInk, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    text = "앱 동작 및 개인정보 설정",
+                    modifier = Modifier.padding(top = 2.dp),
+                    color = CaptureMutedForeground,
+                    fontSize = 13.sp,
                 )
-                SettingsActionRow(label = "로그아웃", destructive = true, onClick = onSignOut)
+            }
+
+            SettingsSection(title = "알림") {
+                SettingsActionRow(label = "리마인드 예정 목록", destructive = false, onClick = onReminders)
+            }
+
+            SettingsSection(title = "계정") {
+                if (session == null) {
+                    SettingsRow(label = "로그인 정보 없음", sub = "로그인 후 계정 정보가 표시돼요")
+                } else {
+                    SettingsRow(
+                        glyph = (session.user.name?.firstOrNull() ?: session.user.email.first()).uppercase(),
+                        label = session.user.name ?: session.user.email,
+                        sub = session.user.email,
+                    )
+                    SettingsActionRow(label = "로그아웃", destructive = true, onClick = onSignOut)
+                }
             }
         }
     }
@@ -100,7 +106,7 @@ private fun SettingsSection(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun SettingsRow(glyph: String, label: String, sub: String? = null) {
+private fun SettingsRow(label: String, sub: String? = null, glyph: String? = null) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -113,7 +119,16 @@ private fun SettingsRow(glyph: String, label: String, sub: String? = null) {
                 .background(CaptureMuted, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            Text(text = glyph, color = CaptureMutedForeground, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            if (glyph != null) {
+                Text(text = glyph, color = CaptureMutedForeground, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            } else {
+                Icon(
+                    imageVector = Icons.Filled.Person,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = CaptureMutedForeground,
+                )
+            }
         }
         Column(modifier = Modifier.padding(start = 12.dp)) {
             Text(text = label, color = CaptureInk, fontSize = 14.sp, fontWeight = FontWeight.Medium)

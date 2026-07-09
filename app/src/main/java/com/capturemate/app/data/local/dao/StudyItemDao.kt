@@ -18,7 +18,7 @@ interface StudyItemDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(studyItem: StudyItemEntity)
 
-    @Query("UPDATE study_items SET selectedReviewDays = :days WHERE memoId = :memoId")
+    @Query("UPDATE study_items SET selectedReviewDays = :days, reminderConfirmed = 1 WHERE memoId = :memoId")
     suspend fun updateSelectedReviewDays(memoId: String, days: Int)
 
     @Query("DELETE FROM study_items WHERE memoId = :memoId")

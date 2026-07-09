@@ -17,19 +17,30 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -40,6 +51,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -51,7 +63,7 @@ import com.capturemate.app.data.local.entity.LifeInfoItemEntity
 import com.capturemate.app.data.local.entity.ScheduleItemEntity
 import com.capturemate.app.data.local.entity.StudyItemEntity
 import com.capturemate.app.domain.repository.CaptureRepository
-import com.capturemate.app.feature.common.categoryGlyph
+import com.capturemate.app.feature.common.categoryIcon
 import com.capturemate.app.feature.common.categoryLabel
 import com.capturemate.app.feature.common.rememberLocalBitmap
 import com.capturemate.app.ui.theme.CaptureBackground
@@ -211,7 +223,12 @@ private fun DetailHeader(title: String, onBack: () -> Unit, onMenuClick: () -> U
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Surface(onClick = onBack, color = CaptureSurface) {
-            Text(text = "‹", color = CaptureInk, fontSize = 26.sp, modifier = Modifier.padding(8.dp))
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "뒤로",
+                modifier = Modifier.padding(8.dp).size(22.dp),
+                tint = CaptureInk,
+            )
         }
         Text(
             text = title,
@@ -225,7 +242,12 @@ private fun DetailHeader(title: String, onBack: () -> Unit, onMenuClick: () -> U
             overflow = TextOverflow.Ellipsis,
         )
         Surface(onClick = onMenuClick, color = CaptureSurface) {
-            Text(text = "⋯", color = CaptureMutedForeground, fontSize = 20.sp, modifier = Modifier.padding(8.dp))
+            Icon(
+                imageVector = Icons.Filled.MoreVert,
+                contentDescription = "더보기",
+                modifier = Modifier.padding(8.dp).size(20.dp),
+                tint = CaptureMutedForeground,
+            )
         }
     }
 }
@@ -275,7 +297,12 @@ private fun AiSummaryCard(category: String, summary: String, recommendedAction: 
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "⚡", fontSize = 13.sp)
+                Icon(
+                    imageVector = Icons.Filled.Bolt,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = CaptureInk,
+                )
                 Text(
                     text = "AI 분석 결과",
                     modifier = Modifier.padding(start = 6.dp),
@@ -291,8 +318,16 @@ private fun AiSummaryCard(category: String, summary: String, recommendedAction: 
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Surface(shape = RoundedCornerShape(999.dp), color = CaptureMuted) {
-                    Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) {
-                        Text(text = categoryGlyph(category), fontSize = 10.sp)
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            imageVector = categoryIcon(category),
+                            contentDescription = null,
+                            modifier = Modifier.size(10.dp),
+                            tint = CaptureMutedForeground,
+                        )
                         Text(
                             text = categoryLabel(category),
                             modifier = Modifier.padding(start = 4.dp),
@@ -359,6 +394,27 @@ private fun SectionLabel(text: String) {
 }
 
 @Composable
+private fun LabeledInfoRow(
+    label: String,
+    value: String,
+    valueColor: Color = CaptureInk,
+    valueFontWeight: FontWeight = FontWeight.Normal,
+) {
+    Row(modifier = Modifier.fillMaxWidth()) {
+        Box(modifier = Modifier.width(44.dp)) {
+            SectionLabel(label)
+        }
+        Text(
+            text = value,
+            modifier = Modifier.weight(1f).padding(start = 8.dp),
+            color = valueColor,
+            fontSize = 14.sp,
+            fontWeight = valueFontWeight,
+        )
+    }
+}
+
+@Composable
 private fun StudySection(
     studyItem: StudyItemEntity,
     onSelectReviewDays: (Int) -> Unit,
@@ -412,7 +468,7 @@ private fun StudySection(
             }
         }
 
-        val isConfirmed = selectedDays == studyItem.selectedReviewDays
+        val isConfirmed = studyItem.reminderConfirmed && selectedDays == studyItem.selectedReviewDays
         Surface(
             onClick = { onSelectReviewDays(selectedDays) },
             modifier = Modifier
@@ -428,7 +484,12 @@ private fun StudySection(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(text = if (isConfirmed) "✓" else "🔔", fontSize = 12.sp)
+                Icon(
+                    imageVector = if (isConfirmed) Icons.Filled.Check else Icons.Filled.Notifications,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = CaptureInk,
+                )
                 Text(
                     text = if (isConfirmed) "알림 설정 완료" else "${selectedDays}일 후 복습 알림 설정",
                     modifier = Modifier.padding(start = 6.dp),
@@ -465,14 +526,14 @@ private fun LifeInfoSection(
                 }
             }
 
-            SectionLabel("대상")
-            Text(text = lifeInfoItem.target, color = CaptureInk, fontSize = 14.sp)
-
-            SectionLabel("신청")
-            Text(text = lifeInfoItem.applicationMethod, color = CaptureInk, fontSize = 14.sp)
-
-            SectionLabel("마감")
-            Text(text = formatDeadline(lifeInfoItem.deadline), color = CaptureDestructive, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            LabeledInfoRow(label = "대상", value = lifeInfoItem.target)
+            LabeledInfoRow(label = "신청", value = lifeInfoItem.applicationMethod)
+            LabeledInfoRow(
+                label = "마감",
+                value = formatDeadline(lifeInfoItem.deadline),
+                valueColor = CaptureDestructive,
+                valueFontWeight = FontWeight.SemiBold,
+            )
 
             Button(
                 onClick = { onToggleDeadlineReminder(!lifeInfoItem.deadlineReminderEnabled) },
@@ -512,7 +573,12 @@ private fun ScheduleSection(
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SectionCard {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "📅", fontSize = 12.sp)
+                Icon(
+                    imageVector = Icons.Filled.CalendarToday,
+                    contentDescription = null,
+                    modifier = Modifier.size(13.dp),
+                    tint = CaptureInk,
+                )
                 Text(
                     text = "감지된 일정",
                     modifier = Modifier.padding(start = 6.dp),
@@ -570,32 +636,65 @@ private fun ScheduleSection(
 @Composable
 private fun ReminderPickerCard(initialDate: Long?, onSetCustomReminderDate: (Long?) -> Unit) {
     SectionCard {
-        var pickerVisible by remember { mutableStateOf(initialDate != null) }
+        var selectedDate by remember(initialDate) { mutableStateOf(initialDate) }
+        var showDialog by remember { mutableStateOf(false) }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(text = "리마인드 알림", color = CaptureInk, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Column {
+                Text(text = "리마인드 알림", color = CaptureInk, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                selectedDate?.let {
+                    Text(
+                        text = formatDeadline(it),
+                        modifier = Modifier.padding(top = 2.dp),
+                        color = CaptureMutedForeground,
+                        fontSize = 12.sp,
+                    )
+                }
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(text = "날짜 선택", color = CaptureMutedForeground, fontSize = 12.sp)
                 Checkbox(
-                    checked = pickerVisible,
+                    checked = selectedDate != null,
                     onCheckedChange = { checked ->
-                        pickerVisible = checked
-                        if (!checked) onSetCustomReminderDate(null)
+                        if (checked) {
+                            showDialog = true
+                        } else {
+                            selectedDate = null
+                            onSetCustomReminderDate(null)
+                        }
                     },
                 )
             }
         }
 
-        if (pickerVisible) {
-            val datePickerState = rememberDatePickerState(initialSelectedDateMillis = initialDate)
-            DatePicker(state = datePickerState)
-
-            LaunchedEffect(datePickerState.selectedDateMillis) {
-                datePickerState.selectedDateMillis?.let(onSetCustomReminderDate)
+        if (showDialog) {
+            val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedDate)
+            DatePickerDialog(
+                onDismissRequest = { showDialog = false },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            datePickerState.selectedDateMillis?.let {
+                                selectedDate = it
+                                onSetCustomReminderDate(it)
+                            }
+                            showDialog = false
+                        },
+                    ) {
+                        Text("확인")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDialog = false }) {
+                        Text("취소")
+                    }
+                },
+            ) {
+                DatePicker(state = datePickerState)
             }
         }
     }

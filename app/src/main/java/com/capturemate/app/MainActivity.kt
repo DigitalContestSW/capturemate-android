@@ -17,7 +17,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -31,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -178,21 +185,21 @@ class MainActivity : FragmentActivity() {
                                         horizontalArrangement = Arrangement.SpaceEvenly,
                                     ) {
                                         BottomNavItem(
-                                            glyph = "⌂",
+                                            icon = Icons.Filled.Home,
                                             label = "홈",
                                             selected = selectedTab == Tab.Home,
                                             onClick = { selectedTab = Tab.Home },
                                             modifier = Modifier.weight(1f),
                                         )
                                         BottomNavItem(
-                                            glyph = "▣",
+                                            icon = Icons.AutoMirrored.Filled.MenuBook,
                                             label = "메모함",
                                             selected = selectedTab == Tab.MemoList,
                                             onClick = { selectedTab = Tab.MemoList },
                                             modifier = Modifier.weight(1f),
                                         )
                                         BottomNavItem(
-                                            glyph = "⚙",
+                                            icon = Icons.Filled.Settings,
                                             label = "설정",
                                             selected = selectedTab == Tab.Settings,
                                             onClick = { selectedTab = Tab.Settings },
@@ -204,7 +211,10 @@ class MainActivity : FragmentActivity() {
                         ) { innerPadding ->
                             Box(modifier = Modifier.padding(innerPadding)) {
                                 when (selectedTab) {
-                                    Tab.Home -> HomeRoute(repository = repository)
+                                    Tab.Home -> HomeRoute(
+                                        repository = repository,
+                                        onMemoClick = { selectedMemoId = it },
+                                    )
                                     Tab.MemoList -> MemoListRoute(
                                         repository = repository,
                                         onMemoClick = { selectedMemoId = it },
@@ -250,7 +260,7 @@ class MainActivity : FragmentActivity() {
 
 @Composable
 private fun BottomNavItem(
-    glyph: String,
+    icon: ImageVector,
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
@@ -266,7 +276,7 @@ private fun BottomNavItem(
             modifier = Modifier.padding(vertical = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(text = glyph, color = color, fontSize = 20.sp)
+            Icon(imageVector = icon, contentDescription = label, modifier = Modifier.size(22.dp), tint = color)
             Text(
                 text = label,
                 color = color,

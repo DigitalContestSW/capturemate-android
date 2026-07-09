@@ -15,6 +15,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -28,7 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.capturemate.app.domain.repository.CaptureRepository
-import com.capturemate.app.feature.common.categoryGlyph
+import com.capturemate.app.feature.common.categoryIcon
 import com.capturemate.app.feature.common.categoryLabel
 import com.capturemate.app.ui.theme.CaptureBackground
 import com.capturemate.app.ui.theme.CaptureBorder
@@ -59,7 +62,12 @@ fun RemindersRoute(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Surface(onClick = onBack, color = CaptureSurface) {
-                    Text(text = "‹", color = CaptureInk, fontSize = 26.sp, modifier = Modifier.padding(8.dp))
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "뒤로",
+                        modifier = Modifier.padding(8.dp).size(22.dp),
+                        tint = CaptureInk,
+                    )
                 }
                 Text(
                     text = "리마인드 예정",
@@ -113,7 +121,12 @@ private fun ReminderRow(entry: ReminderEntry, onClick: () -> Unit) {
                     .background(CaptureMuted, RoundedCornerShape(10.dp)),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(text = categoryGlyph(entry.category), fontSize = 16.sp)
+                Icon(
+                    imageVector = categoryIcon(entry.category),
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = CaptureMutedForeground,
+                )
             }
             Column(
                 modifier = Modifier
