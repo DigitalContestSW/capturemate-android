@@ -1,5 +1,6 @@
 package com.capturemate.app.feature.memo
 
+import com.capturemate.app.data.local.entity.CaptureEntity
 import com.capturemate.app.data.local.entity.LifeInfoItemEntity
 import com.capturemate.app.data.local.entity.MemoEntity
 import com.capturemate.app.data.local.entity.ScheduleItemEntity
@@ -12,6 +13,7 @@ data class MemoListUiState(
 
 data class MemoDetailUiState(
     val memo: MemoEntity? = null,
+    val capture: CaptureEntity? = null,
     val studyItem: StudyItemEntity? = null,
     val lifeInfoItem: LifeInfoItemEntity? = null,
     val scheduleItem: ScheduleItemEntity? = null,

@@ -112,8 +112,11 @@ fun MemoDetailRoute(
             ) {
                 Text(text = memo.title, style = MaterialTheme.typography.headlineSmall)
 
-                state.scheduleItem?.let { scheduleItem ->
-                    ScreenshotStrip(screenshotUris = scheduleItem.screenshotUris)
+                val scheduleItem = state.scheduleItem
+                val capture = state.capture
+                when {
+                    scheduleItem != null -> ScreenshotStrip(screenshotUris = scheduleItem.screenshotUris)
+                    capture != null -> ScreenshotStrip(screenshotUris = listOf(capture.localImageUri))
                 }
 
                 Card {
