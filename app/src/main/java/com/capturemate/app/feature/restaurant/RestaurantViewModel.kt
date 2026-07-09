@@ -33,7 +33,7 @@ class RestaurantViewModel(
             repository.observeRestaurantMapState().collect { state ->
                 if (
                     BuildConfig.DEBUG &&
-                    state.restaurants.isEmpty() &&
+                    state.restaurants.size < DEBUG_RESTAURANT_SEED_MIN_COUNT &&
                     !debugPlaceSeedRequested
                 ) {
                     debugPlaceSeedRequested = true
@@ -108,6 +108,7 @@ class RestaurantViewModel(
     }
 
     private companion object {
+        const val DEBUG_RESTAURANT_SEED_MIN_COUNT = 6
         const val DEBUG_RESTAURANT_TEXT = "성수동 카페 어니언. 서울 성동구 성수이로 근처. 아메리카노 6000원, 소금빵 4500원, 브런치 18000원. 평일 오전 방문 추천. 데이트와 친구 약속에 좋음."
     }
 
