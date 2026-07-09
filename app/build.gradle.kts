@@ -99,6 +99,8 @@ dependencies {
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.google.identity.googleid)
+    implementation(libs.google.play.services.auth)
+    implementation(libs.google.play.services.location)
     implementation(libs.retrofit)
     implementation(libs.retrofit.kotlinx.serialization)
     implementation(libs.okhttp)

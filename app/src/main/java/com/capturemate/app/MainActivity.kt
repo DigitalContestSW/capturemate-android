@@ -33,6 +33,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.capturemate.app.feature.home.HomeRoute
 import com.capturemate.app.feature.home.HomeViewModel
 import com.capturemate.app.feature.home.HomeViewModelFactory
+//import com.capturemate.app.feature.home.LoginScreen
 import com.capturemate.app.feature.home.SettingsRoute
 import com.capturemate.app.feature.memo.MemoDetailRoute
 import com.capturemate.app.feature.memo.MemoListRoute
@@ -50,6 +51,10 @@ class MainActivity : FragmentActivity() {
     private val requestNotificationPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { /* Permission result is only needed before scheduling future notifications. */ }
+
+    private val requestFineLocationPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { /* Location permission result is handled by retrying the toggle if needed. */ }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -85,7 +90,14 @@ class MainActivity : FragmentActivity() {
                     !homeUiState.isSessionLoaded -> {
                         Box(modifier = Modifier.fillMaxWidth())
                     }
-
+                    /*session == null -> {
+                        LoginScreen(
+                            isLoading = homeUiState.isLoading,
+                            errorMessage = homeUiState.errorMessage,
+                            versionName = BuildConfig.VERSION_NAME,
+                            onGoogleClick = { homeViewModel.signIn(context) },
+                        )
+                    }*/
                     memoId != null -> {
                         BackHandler { selectedMemoId = null }
                         MemoDetailRoute(
@@ -99,6 +111,9 @@ class MainActivity : FragmentActivity() {
                         RestaurantDetailRoute(
                             memoId = restaurantMemoId,
                             repository = repository,
+                            onRequestFineLocationPermission = {
+                                requestFineLocationPermissionIfNeeded()
+                            },
                         )
                     }
 
@@ -180,6 +195,19 @@ class MainActivity : FragmentActivity() {
         if (!granted) {
             requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
+    }
+
+    private fun requestFineLocationPermissionIfNeeded(): Boolean {
+        val granted = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (!granted) {
+            requestFineLocationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+
+        return granted
     }
 
     companion object {
