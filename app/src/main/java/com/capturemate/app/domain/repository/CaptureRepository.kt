@@ -33,6 +33,11 @@ interface CaptureRepository {
     suspend fun setDeadlineReminderEnabled(memoId: String, enabled: Boolean)
     suspend fun setCustomReminderAt(memoId: String, at: Long?)
     suspend fun setScheduleCustomReminderAt(memoId: String, at: Long?)
+    suspend fun setRestaurantLocationReminderEnabled(
+        restaurantMemoId: String,
+        enabled: Boolean,
+        radiusMeters: Float = 200f,
+    )
     suspend fun addScheduleToGoogleCalendar(context: Context, memoId: String): AddToGoogleCalendarResult
     suspend fun finishAddScheduleToGoogleCalendar(
         context: Context,

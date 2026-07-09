@@ -21,6 +21,9 @@ data class RestaurantMemoEntity(
     val estimatedPricePerPersonMax: Int?,
     val confidence: Double,
     val needsUserReview: Boolean,
+    val locationReminderEnabled: Boolean = false,
+    val locationReminderRadiusMeters: Float = 200f,
+    val locationReminderLastTriggeredAt: Long? = null,
     val createdAt: Long,
     val updatedAt: Long,
 )

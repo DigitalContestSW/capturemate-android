@@ -2,6 +2,7 @@
 
 import android.content.Context
 import android.content.Intent
+import com.capturemate.app.core.location.RestaurantGeofenceManager
 import com.capturemate.app.core.notification.NotificationScheduler
 import com.capturemate.app.core.calendar.CalendarAuthorizationResult
 import com.capturemate.app.core.calendar.GoogleCalendarClient
@@ -58,6 +59,7 @@ class DefaultCaptureRepository(
     private val scheduleItemDao: ScheduleItemDao,
     private val googleCalendarClient: GoogleCalendarClient,
     private val restaurantMemoDao: RestaurantMemoDao,
+    private val restaurantGeofenceManager: RestaurantGeofenceManager,
     private val captureMateApi: CaptureMateApi,
     private val json: Json,
     private val appContext: Context,
@@ -391,10 +393,46 @@ class DefaultCaptureRepository(
             context = appContext,
             workName = workName,
             memoId = memo.id,
-            title = "?쇱젙 由щ쭏?몃뱶",
+            title = "일정 리마인드",
             body = memo.title,
             triggerAtMillis = at,
         )
+    }
+
+    override suspend fun setRestaurantLocationReminderEnabled(
+        restaurantMemoId: String,
+        enabled: Boolean,
+        radiusMeters: Float,
+    ) {
+        if (!enabled) {
+            restaurantMemoDao.updateLocationReminder(
+                restaurantMemoId = restaurantMemoId,
+                enabled = false,
+                radiusMeters = radiusMeters,
+            )
+            restaurantGeofenceManager.unregister(restaurantMemoId)
+            return
+        }
+
+        val restaurant = restaurantMemoDao.getRestaurantMemo(restaurantMemoId) ?: return
+        val latitude = restaurant.latitude ?: return
+        val longitude = restaurant.longitude ?: return
+
+        val registered = restaurantGeofenceManager.register(
+            restaurantMemoId = restaurant.id,
+            memoId = restaurant.memoId,
+            name = restaurant.name,
+            latitude = latitude,
+            longitude = longitude,
+            radiusMeters = radiusMeters,
+        )
+        if (registered) {
+            restaurantMemoDao.updateLocationReminder(
+                restaurantMemoId = restaurantMemoId,
+                enabled = true,
+                radiusMeters = radiusMeters,
+            )
+        }
     }
 
     override suspend fun addScheduleToGoogleCalendar(
