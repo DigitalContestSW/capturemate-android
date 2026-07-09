@@ -2,71 +2,76 @@ package com.capturemate.app.feature.debugocr
 
 import android.Manifest
 import android.app.Application
+import android.content.ContentResolver
 import android.content.pm.PackageManager
 import android.database.ContentObserver
+import android.net.Uri
 import android.os.Build
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.capturemate.app.CaptureMateApplication
+import com.capturemate.app.data.local.entity.CaptureEntity
+import com.capturemate.app.data.local.entity.MemoEntity
+import com.capturemate.app.data.remote.dto.AnalyzeBatchResponse
+import com.capturemate.app.data.remote.dto.AnalyzeCaptureResponse
+import com.capturemate.app.domain.model.MemoStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import okhttp3.ResponseBody
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
+import okio.BufferedSink
+import okio.source
+import java.util.UUID
 import kotlin.system.measureTimeMillis
 
-private const val OCR_SAMPLE_ASSET_DIR = "ocr_samples"
+private const val LATEST_SCREENSHOT_LIMIT = 20
+private const val DEFAULT_LOCALE = "ko-KR"
+private val BackendResponseJson = Json { ignoreUnknownKeys = true }
 
-data class OcrSampleFile(
-    val assetPath: String,
-    val displayName: String,
+data class AnalyzeUploadResult(
+    val clientCaptureId: String,
+    val localImageUri: String,
+    val durationMillis: Long,
+    val uploadedImageCount: Int,
+    val groupCount: Int,
+    val isUseful: Boolean?,
+    val serverMemoId: String?,
+    val title: String,
+    val summary: String,
+    val category: String,
+    val recommendedAction: String?,
+    val reminderAt: Long?,
+    val rawBackendResponse: String,
 )
-
-data class OcrSampleResult(
-    val sample: OcrSampleFile,
-    val durationMillis: Long?,
-    val text: String = "",
-    val maskDurationMillis: Long? = null,
-    val maskedText: String = "",
-    val detectedSensitiveTypes: List<String> = emptyList(),
-    val errorMessage: String? = null,
-) {
-    val isSuccess: Boolean = errorMessage == null
-    val charCount: Int = text.length
-    val hasMaskResult: Boolean = maskDurationMillis != null
-}
 
 data class DebugOcrUiState(
     val hasImagePermission: Boolean = false,
     val isBusy: Boolean = false,
     val isAutoDetecting: Boolean = false,
+    val latestScreenshots: List<ScreenshotImage> = emptyList(),
     val selectedScreenshot: ScreenshotImage? = null,
-    val ocrText: String = "",
-    val ocrDurationMillis: Long? = null,
-    val maskedText: String = "",
-    val detectedSensitiveTypes: List<String> = emptyList(),
-    val maskDurationMillis: Long? = null,
-    val sampleFiles: List<OcrSampleFile> = emptyList(),
-    val sampleResults: List<OcrSampleResult> = emptyList(),
-    val selectedSampleAssetPath: String? = null,
-    val statusMessage: String = "OCR 테스트 준비 중",
+    val lastUploadResult: AnalyzeUploadResult? = null,
+    val processedCount: Int = 0,
+    val skippedDuplicateCount: Int = 0,
+    val statusMessage: String = "백엔드 OCR 업로드 테스트 준비 중",
     val errorMessage: String? = null,
-) {
-    val ocrCharCount: Int = ocrText.length
-    val hasSingleMaskResult: Boolean = maskDurationMillis != null
-    val selectedSampleResult: OcrSampleResult?
-        get() = sampleResults.firstOrNull { it.sample.assetPath == selectedSampleAssetPath }
+)
 
-    val successfulSampleResults: List<OcrSampleResult>
-        get() = sampleResults.filter { it.isSuccess && it.durationMillis != null }
-
-    val averageSampleDurationMillis: Long?
-        get() {
-            val durations = successfulSampleResults.mapNotNull { it.durationMillis }
-            return if (durations.isEmpty()) null else durations.average().toLong()
-        }
-}
+private data class PendingScreenshotUpload(
+    val screenshot: ScreenshotImage,
+    val clientCaptureId: String,
+    val capturedAt: Long,
+)
 
 class DebugOcrViewModel(
     application: Application,
@@ -77,6 +82,8 @@ class DebugOcrViewModel(
     private val appContext = application.applicationContext
     private val appContainer = (application as CaptureMateApplication).appContainer
     private val screenshotMediaStore = ScreenshotMediaStore(appContext)
+    private val processedUris = mutableSetOf<String>()
+    private val json = Json { explicitNulls = false }
     private var observer: ContentObserver? = null
     private var lastObservedUri: String? = null
 
@@ -101,240 +108,21 @@ class DebugOcrViewModel(
         }
     }
 
-    fun refreshSampleList() {
-        viewModelScope.launch {
-            updateState { it.copy(isBusy = true, errorMessage = null, statusMessage = "샘플 목록 조회 중") }
-            runCatching {
-                withContext(Dispatchers.IO) {
-                    listOcrSampleFiles()
-                }
-            }.onSuccess { samples ->
-                updateState {
-                    it.copy(
-                        isBusy = false,
-                        sampleFiles = samples,
-                        sampleResults = emptyList(),
-                        selectedSampleAssetPath = null,
-                        statusMessage = "샘플 ${samples.size}개 조회됨",
-                        errorMessage = null,
-                    )
-                }
-            }.onFailure { throwable ->
-                updateState {
-                    it.copy(
-                        isBusy = false,
-                        statusMessage = "샘플 목록 조회 실패",
-                        errorMessage = throwable.message ?: throwable::class.java.simpleName,
-                    )
-                }
-            }
-        }
-    }
-
-    fun runAllSampleOcr() {
-        viewModelScope.launch {
-            val samples = if (uiState.value.sampleFiles.isNotEmpty()) {
-                uiState.value.sampleFiles
-            } else {
-                withContext(Dispatchers.IO) {
-                    listOcrSampleFiles()
-                }
-            }
-
-            if (samples.isEmpty()) {
-                updateState {
-                    it.copy(
-                        sampleFiles = emptyList(),
-                        sampleResults = emptyList(),
-                        selectedSampleAssetPath = null,
-                        statusMessage = "샘플 이미지가 없습니다",
-                        errorMessage = "app/src/main/assets/ocr_samples 에 png, jpg, jpeg, webp 파일을 넣으세요.",
-                    )
-                }
-                return@launch
-            }
-
-            updateState {
-                it.copy(
-                    isBusy = true,
-                    sampleFiles = samples,
-                    sampleResults = emptyList(),
-                    selectedSampleAssetPath = null,
-                    statusMessage = "샘플 OCR 실행 중 0/${samples.size}",
-                    errorMessage = null,
-                )
-            }
-
-            val results = mutableListOf<OcrSampleResult>()
-            samples.forEachIndexed { index, sample ->
-                updateState {
-                    it.copy(statusMessage = "샘플 OCR 실행 중 ${index + 1}/${samples.size}: ${sample.displayName}")
-                }
-
-                val result = runCatching {
-                    var extractedText = ""
-                    val durationMillis = measureTimeMillis {
-                        val sampleUri = withContext(Dispatchers.IO) {
-                            android.net.Uri.fromFile(copySampleToCache(sample))
-                        }
-                        extractedText = withContext(Dispatchers.IO) {
-                            appContainer.ocrTextExtractor.extractText(sampleUri)
-                        }
-                    }
-                    OcrSampleResult(
-                        sample = sample,
-                        durationMillis = durationMillis,
-                        text = extractedText,
-                    )
-                }.getOrElse { throwable ->
-                    OcrSampleResult(
-                        sample = sample,
-                        durationMillis = null,
-                        errorMessage = throwable.message ?: throwable::class.java.simpleName,
-                    )
-                }
-
-                results += result
-                updateState {
-                    it.copy(
-                        sampleResults = results.toList(),
-                        selectedSampleAssetPath = result.sample.assetPath,
-                    )
-                }
-            }
-
-            val successCount = results.count { it.isSuccess }
-            updateState {
-                it.copy(
-                    isBusy = false,
-                    sampleResults = results.toList(),
-                    selectedSampleAssetPath = results.firstOrNull()?.sample?.assetPath,
-                    statusMessage = "샘플 OCR 완료: 성공 $successCount/${results.size}, 평균 ${it.averageSampleDurationMillis ?: "-"}ms",
-                    errorMessage = null,
-                )
-            }
-        }
-    }
-
-    fun clearSampleResults() {
-        updateState {
-            it.copy(
-                sampleResults = emptyList(),
-                selectedSampleAssetPath = null,
-                statusMessage = "샘플 결과 지움",
-                errorMessage = null,
-            )
-        }
-    }
-
-    fun selectSampleResult(assetPath: String) {
-        updateState {
-            it.copy(selectedSampleAssetPath = assetPath)
-        }
-    }
-
-    fun runMaskOnCurrentOcr() {
-        val rawText = uiState.value.ocrText
-        if (rawText.isBlank()) {
-            updateState {
-                it.copy(
-                    statusMessage = "마스킹할 OCR 결과가 없습니다",
-                    errorMessage = "먼저 OCR을 실행하세요.",
-                )
-            }
-            return
-        }
-
-        viewModelScope.launch {
-            updateState { it.copy(isBusy = true, errorMessage = null, statusMessage = "마스킹 실행 중") }
-            var maskedValue = ""
-            var detectedTypes = emptyList<String>()
-            val durationMillis = measureTimeMillis {
-                val masked = withContext(Dispatchers.Default) {
-                    appContainer.sensitiveTextMasker.mask(rawText)
-                }
-                maskedValue = masked.value
-                detectedTypes = masked.detectedTypes
-            }
-
-            updateState {
-                it.copy(
-                    isBusy = false,
-                    maskedText = maskedValue,
-                    detectedSensitiveTypes = detectedTypes,
-                    maskDurationMillis = durationMillis,
-                    statusMessage = "마스킹 완료: ${detectedTypes.size}개 타입 감지",
-                    errorMessage = null,
-                )
-            }
-        }
-    }
-
-    fun runAllSampleMasking() {
-        val results = uiState.value.sampleResults
-        if (results.none { it.isSuccess && it.text.isNotBlank() }) {
-            updateState {
-                it.copy(
-                    statusMessage = "마스킹할 샘플 OCR 결과가 없습니다",
-                    errorMessage = "먼저 샘플 전체 OCR 실행을 완료하세요.",
-                )
-            }
-            return
-        }
-
-        viewModelScope.launch {
-            updateState { it.copy(isBusy = true, errorMessage = null, statusMessage = "샘플 마스킹 실행 중") }
-            val maskedResults = results.mapIndexed { index, result ->
-                if (!result.isSuccess || result.text.isBlank()) {
-                    result
-                } else {
-                    updateState {
-                        it.copy(statusMessage = "샘플 마스킹 실행 중 ${index + 1}/${results.size}: ${result.sample.displayName}")
-                    }
-
-                    var maskedValue = ""
-                    var detectedTypes = emptyList<String>()
-                    val durationMillis = measureTimeMillis {
-                        val masked = withContext(Dispatchers.Default) {
-                            appContainer.sensitiveTextMasker.mask(result.text)
-                        }
-                        maskedValue = masked.value
-                        detectedTypes = masked.detectedTypes
-                    }
-                    result.copy(
-                        maskDurationMillis = durationMillis,
-                        maskedText = maskedValue,
-                        detectedSensitiveTypes = detectedTypes,
-                    )
-                }
-            }
-            val maskedCount = maskedResults.count { it.hasMaskResult }
-            updateState {
-                it.copy(
-                    isBusy = false,
-                    sampleResults = maskedResults,
-                    selectedSampleAssetPath = maskedResults.firstOrNull()?.sample?.assetPath,
-                    statusMessage = "샘플 마스킹 완료: $maskedCount/${maskedResults.size}",
-                    errorMessage = null,
-                )
-            }
-        }
-    }
-
     fun loadLatestScreenshot() {
         if (!ensurePermission()) return
 
         viewModelScope.launch {
-            updateState { it.copy(isBusy = true, errorMessage = null, statusMessage = "최신 스크린샷 조회 중") }
+            updateState { it.copy(isBusy = true, errorMessage = null, statusMessage = "최신 스크린샷 목록 조회 중") }
             runCatching {
                 withContext(Dispatchers.IO) {
-                    screenshotMediaStore.findLatestScreenshot()
+                    screenshotMediaStore.findLatestScreenshots(LATEST_SCREENSHOT_LIMIT)
                 }
-            }.onSuccess { screenshot ->
+            }.onSuccess { screenshots ->
                 updateState {
-                    if (screenshot == null) {
+                    if (screenshots.isEmpty()) {
                         it.copy(
                             isBusy = false,
+                            latestScreenshots = emptyList(),
                             selectedScreenshot = null,
                             statusMessage = "Screenshots 폴더에서 이미지를 찾지 못함",
                             errorMessage = null,
@@ -342,13 +130,9 @@ class DebugOcrViewModel(
                     } else {
                         it.copy(
                             isBusy = false,
-                            selectedScreenshot = screenshot,
-                            ocrText = "",
-                            ocrDurationMillis = null,
-                            maskedText = "",
-                            detectedSensitiveTypes = emptyList(),
-                            maskDurationMillis = null,
-                            statusMessage = "최신 스크린샷 선택됨",
+                            latestScreenshots = screenshots,
+                            selectedScreenshot = screenshots.first(),
+                            statusMessage = "최신 스크린샷 ${screenshots.size}개 조회됨",
                             errorMessage = null,
                         )
                     }
@@ -365,7 +149,18 @@ class DebugOcrViewModel(
         }
     }
 
-    fun runOcrOnSelected() {
+    fun selectScreenshot(uri: String) {
+        val screenshot = uiState.value.latestScreenshots.firstOrNull { it.uri.toString() == uri } ?: return
+        updateState {
+            it.copy(
+                selectedScreenshot = screenshot,
+                statusMessage = "스크린샷 선택됨",
+                errorMessage = null,
+            )
+        }
+    }
+
+    fun uploadSelectedScreenshot() {
         val screenshot = uiState.value.selectedScreenshot
         if (screenshot == null) {
             updateState {
@@ -375,65 +170,40 @@ class DebugOcrViewModel(
         }
 
         viewModelScope.launch {
-            updateState { it.copy(isBusy = true, errorMessage = null, statusMessage = "OCR 실행 중") }
-            var extractedText = ""
-            val result = runCatching {
-                measureTimeMillis {
-                    extractedText = withContext(Dispatchers.IO) {
-                        appContainer.ocrTextExtractor.extractText(screenshot.uri)
-                    }
-                }
-            }
-
-            result.onSuccess { durationMillis ->
-                updateState {
-                    it.copy(
-                        isBusy = false,
-                        ocrText = extractedText,
-                        ocrDurationMillis = durationMillis,
-                        maskedText = "",
-                        detectedSensitiveTypes = emptyList(),
-                        maskDurationMillis = null,
-                        statusMessage = "OCR 완료",
-                        errorMessage = null,
-                    )
-                }
-            }.onFailure { throwable ->
-                updateState {
-                    it.copy(
-                        isBusy = false,
-                        statusMessage = "OCR 실패",
-                        errorMessage = throwable.message ?: throwable::class.java.simpleName,
-                    )
-                }
-            }
+            processScreenshot(screenshot = screenshot, force = true)
         }
     }
 
-    fun loadLatestScreenshotAndRunOcr() {
+    fun uploadLatestScreenshots() {
         if (!ensurePermission()) return
 
         viewModelScope.launch {
-            updateState { it.copy(isBusy = true, errorMessage = null, statusMessage = "최신 스크린샷 조회 중") }
-            val screenshot = runCatching {
-                withContext(Dispatchers.IO) {
-                    screenshotMediaStore.findLatestScreenshot()
+            val currentScreenshots = uiState.value.latestScreenshots
+            val screenshots = if (currentScreenshots.isNotEmpty()) {
+                currentScreenshots
+            } else {
+                updateState { it.copy(isBusy = true, errorMessage = null, statusMessage = "최신 스크린샷 조회 중") }
+                runCatching {
+                    withContext(Dispatchers.IO) {
+                        screenshotMediaStore.findLatestScreenshots(LATEST_SCREENSHOT_LIMIT)
+                    }
+                }.getOrElse { throwable ->
+                    updateState {
+                        it.copy(
+                            isBusy = false,
+                            statusMessage = "스크린샷 조회 실패",
+                            errorMessage = throwable.message ?: throwable::class.java.simpleName,
+                        )
+                    }
+                    return@launch
                 }
-            }.getOrElse { throwable ->
-                updateState {
-                    it.copy(
-                        isBusy = false,
-                        statusMessage = "스크린샷 조회 실패",
-                        errorMessage = throwable.message ?: throwable::class.java.simpleName,
-                    )
-                }
-                return@launch
             }
 
-            if (screenshot == null) {
+            if (screenshots.isEmpty()) {
                 updateState {
                     it.copy(
                         isBusy = false,
+                        latestScreenshots = emptyList(),
                         selectedScreenshot = null,
                         statusMessage = "Screenshots 폴더에서 이미지를 찾지 못함",
                     )
@@ -443,45 +213,11 @@ class DebugOcrViewModel(
 
             updateState {
                 it.copy(
-                    selectedScreenshot = screenshot,
-                    ocrText = "",
-                    ocrDurationMillis = null,
-                    maskedText = "",
-                    detectedSensitiveTypes = emptyList(),
-                    maskDurationMillis = null,
-                    statusMessage = "OCR 실행 중",
+                    latestScreenshots = screenshots,
+                    selectedScreenshot = screenshots.first(),
                 )
             }
-
-            var extractedText = ""
-            runCatching {
-                measureTimeMillis {
-                    extractedText = withContext(Dispatchers.IO) {
-                        appContainer.ocrTextExtractor.extractText(screenshot.uri)
-                    }
-                }
-            }.onSuccess { durationMillis ->
-                updateState {
-                    it.copy(
-                        isBusy = false,
-                        ocrText = extractedText,
-                        ocrDurationMillis = durationMillis,
-                        maskedText = "",
-                        detectedSensitiveTypes = emptyList(),
-                        maskDurationMillis = null,
-                        statusMessage = "최신 스크린샷 OCR 완료",
-                        errorMessage = null,
-                    )
-                }
-            }.onFailure { throwable ->
-                updateState {
-                    it.copy(
-                        isBusy = false,
-                        statusMessage = "OCR 실패",
-                        errorMessage = throwable.message ?: throwable::class.java.simpleName,
-                    )
-                }
-            }
+            processScreenshots(screenshots = screenshots, force = true)
         }
     }
 
@@ -500,34 +236,33 @@ class DebugOcrViewModel(
         observer = screenshotMediaStore.registerObserver {
             viewModelScope.launch {
                 delay(500L)
-                val screenshot = withContext(Dispatchers.IO) {
-                    screenshotMediaStore.findLatestScreenshot()
+                val screenshots = withContext(Dispatchers.IO) {
+                    screenshotMediaStore.findLatestScreenshots(LATEST_SCREENSHOT_LIMIT)
                 }
-                val uri = screenshot?.uri?.toString()
-                if (screenshot != null && uri != lastObservedUri) {
+                val latestScreenshot = screenshots.firstOrNull()
+                val uri = latestScreenshot?.uri?.toString()
+                if (latestScreenshot != null && uri != lastObservedUri) {
                     lastObservedUri = uri
                     updateState {
                         it.copy(
-                            selectedScreenshot = screenshot,
-                            ocrText = "",
-                            ocrDurationMillis = null,
-                            maskedText = "",
-                            detectedSensitiveTypes = emptyList(),
-                            maskDurationMillis = null,
+                            latestScreenshots = screenshots,
+                            selectedScreenshot = latestScreenshot,
                             statusMessage = "새 스크린샷 감지됨",
                             errorMessage = null,
                         )
                     }
+                    processScreenshot(screenshot = latestScreenshot, force = false)
                 }
             }
         }
         updateState {
             it.copy(
                 isAutoDetecting = true,
-                statusMessage = "자동 감지 시작됨",
+                statusMessage = "자동 업로드 감지 시작됨",
                 errorMessage = null,
             )
         }
+        loadLatestScreenshot()
     }
 
     private fun stopAutoDetection() {
@@ -536,10 +271,162 @@ class DebugOcrViewModel(
         updateState {
             it.copy(
                 isAutoDetecting = false,
-                statusMessage = "자동 감지 중지됨",
+                statusMessage = "자동 업로드 감지 중지됨",
                 errorMessage = null,
             )
         }
+    }
+
+    private suspend fun processScreenshot(
+        screenshot: ScreenshotImage,
+        force: Boolean,
+    ) {
+        processScreenshots(screenshots = listOf(screenshot), force = force)
+    }
+
+    private suspend fun processScreenshots(
+        screenshots: List<ScreenshotImage>,
+        force: Boolean,
+    ) {
+        if (!ensurePermission()) return
+
+        val uploadScreenshots = if (force) {
+            screenshots
+        } else {
+            screenshots.filterNot { processedUris.contains(it.uri.toString()) }
+        }
+        val skippedCount = screenshots.size - uploadScreenshots.size
+        if (uploadScreenshots.isEmpty()) {
+            updateState {
+                it.copy(
+                    skippedDuplicateCount = it.skippedDuplicateCount + skippedCount,
+                    statusMessage = "이미 처리한 스크린샷 건너뜀",
+                    errorMessage = null,
+                )
+            }
+            return
+        }
+
+        updateState {
+            it.copy(
+                isBusy = true,
+                selectedScreenshot = uploadScreenshots.first(),
+                skippedDuplicateCount = it.skippedDuplicateCount + skippedCount,
+                statusMessage = "백엔드 OCR ${uploadScreenshots.size}개 업로드 중",
+                errorMessage = null,
+            )
+        }
+
+        val createdAt = System.currentTimeMillis()
+        val pendingUploads = uploadScreenshots.map { screenshot ->
+            PendingScreenshotUpload(
+                screenshot = screenshot,
+                clientCaptureId = UUID.randomUUID().toString(),
+                capturedAt = screenshot.bestTimestampMillis(),
+            )
+        }
+        var response: BackendAnalyzePayload? = null
+        val result = runCatching {
+            val metadata = pendingUploads.map { upload ->
+                AnalyzeImageMetadata(
+                    clientId = upload.clientCaptureId,
+                    capturedAt = upload.capturedAt,
+                )
+            }
+            val durationMillis = measureTimeMillis {
+                response = withContext(Dispatchers.IO) {
+                    appContainer.captureMateApi.analyzeCapture(
+                        images = pendingUploads.map { createImagePart(it.screenshot.uri) },
+                        locale = DEFAULT_LOCALE.toPlainTextRequestBody(),
+                        metadata = json.encodeToString(metadata).toPlainTextRequestBody(),
+                    ).toBackendAnalyzePayload()
+                }
+            }
+            response.toUploadResult(
+                uploads = pendingUploads,
+                durationMillis = durationMillis,
+            )
+        }
+
+        result.onSuccess { uploadResult ->
+            processedUris += pendingUploads.map { it.screenshot.uri.toString() }
+            val payload = response ?: error("백엔드 응답이 비어 있습니다.")
+            withContext(Dispatchers.IO) {
+                saveBatchResult(
+                    uploads = pendingUploads,
+                    response = payload.parsed,
+                    createdAt = createdAt,
+                )
+            }
+
+            updateState {
+                it.copy(
+                    isBusy = false,
+                    lastUploadResult = uploadResult,
+                    processedCount = it.processedCount + pendingUploads.size,
+                    statusMessage = "백엔드 분석 완료: ${uploadResult.title}",
+                    errorMessage = null,
+                )
+            }
+        }.onFailure { throwable ->
+            updateState {
+                it.copy(
+                    isBusy = false,
+                    statusMessage = "백엔드 분석 실패",
+                    errorMessage = throwable.message ?: throwable::class.java.simpleName,
+                )
+            }
+        }
+    }
+
+    private suspend fun saveBatchResult(
+        uploads: List<PendingScreenshotUpload>,
+        response: AnalyzeBatchResponse,
+        createdAt: Long,
+    ) {
+        val uploadsByClientId = uploads.associateBy { it.clientCaptureId }
+        val usefulGroups = response.groups.filter { it.analysis.isUseful }
+        usefulGroups.forEach { group ->
+            group.memberClientIds.forEach { clientId ->
+                val upload = uploadsByClientId[clientId] ?: return@forEach
+                appContainer.captureRepository.upsertCapture(
+                    CaptureEntity(
+                        id = upload.clientCaptureId,
+                        localImageUri = upload.screenshot.uri.toString(),
+                        rawTextLocalOnly = "",
+                        maskedText = "",
+                        category = group.analysis.category,
+                        capturedAt = upload.capturedAt,
+                        createdAt = createdAt,
+                    ),
+                )
+            }
+            appContainer.captureRepository.upsertMemo(
+                MemoEntity(
+                    id = group.analysis.serverMemoId ?: UUID.randomUUID().toString(),
+                    captureId = group.memberClientIds.firstOrNull(),
+                    serverMemoId = group.analysis.serverMemoId,
+                    title = group.analysis.title,
+                    summary = group.analysis.summary,
+                    category = group.analysis.category,
+                    recommendedAction = group.analysis.recommendedAction,
+                    reminderAt = group.analysis.reminderAt,
+                    status = MemoStatus.Pending.name,
+                    createdAt = createdAt,
+                    updatedAt = createdAt,
+                ),
+            )
+        }
+    }
+
+    private fun createImagePart(uri: Uri): MultipartBody.Part {
+        val contentResolver = appContext.contentResolver
+        val mimeType = contentResolver.getType(uri) ?: "image/jpeg"
+        return MultipartBody.Part.createFormData(
+            name = "images",
+            filename = "capture.jpg",
+            body = ContentUriRequestBody(contentResolver, uri, mimeType),
+        )
     }
 
     private fun ensurePermission(): Boolean {
@@ -569,44 +456,125 @@ class DebugOcrViewModel(
         uiState.value = reducer(uiState.value)
     }
 
-    private fun listOcrSampleFiles(): List<OcrSampleFile> {
-        return appContext.assets.list(OCR_SAMPLE_ASSET_DIR)
-            .orEmpty()
-            .filter { fileName ->
-                val lowerName = fileName.lowercase()
-                lowerName.endsWith(".png") ||
-                    lowerName.endsWith(".jpg") ||
-                    lowerName.endsWith(".jpeg") ||
-                    lowerName.endsWith(".webp")
-            }
-            .sorted()
-            .map { fileName ->
-                OcrSampleFile(
-                    assetPath = "$OCR_SAMPLE_ASSET_DIR/$fileName",
-                    displayName = fileName,
-                )
-            }
-    }
-
-    private fun copySampleToCache(sample: OcrSampleFile): File {
-        val cacheDirectory = File(appContext.cacheDir, OCR_SAMPLE_ASSET_DIR).apply {
-            mkdirs()
-        }
-        val safeFileName = sample.displayName.replace(Regex("""[^A-Za-z0-9._-]"""), "_")
-        val outputFile = File(cacheDirectory, safeFileName)
-        appContext.assets.open(sample.assetPath).use { input ->
-            outputFile.outputStream().use { output ->
-                input.copyTo(output)
-            }
-        }
-        return outputFile
-    }
-
     override fun onCleared() {
         observer?.let(screenshotMediaStore::unregisterObserver)
         observer = null
         super.onCleared()
     }
+}
+
+private class ContentUriRequestBody(
+    private val contentResolver: ContentResolver,
+    private val uri: Uri,
+    private val mimeType: String,
+) : RequestBody() {
+    override fun contentType() = mimeType.toMediaType()
+
+    override fun contentLength(): Long {
+        return contentResolver.openAssetFileDescriptor(uri, "r")?.use { descriptor ->
+            descriptor.length
+        } ?: -1L
+    }
+
+    override fun writeTo(sink: BufferedSink) {
+        val inputStream = contentResolver.openInputStream(uri)
+            ?: error("이미지 스트림을 열 수 없습니다.")
+        inputStream.use { input ->
+            sink.writeAll(input.source())
+        }
+    }
+}
+
+private fun String.toPlainTextRequestBody(): RequestBody {
+    return toRequestBody("text/plain".toMediaType())
+}
+
+private fun retrofit2.Response<ResponseBody>.toBackendAnalyzePayload(): BackendAnalyzePayload {
+    val raw = if (isSuccessful) {
+        body()?.string().orEmpty()
+    } else {
+        errorBody()?.string().orEmpty()
+    }
+
+    if (!isSuccessful) {
+        error("백엔드 HTTP ${code()}: ${raw.ifBlank { message() }}")
+    }
+    if (raw.isBlank()) {
+        error("백엔드 응답 body가 비어 있습니다.")
+    }
+
+    return BackendAnalyzePayload(
+        rawJson = raw,
+        parsed = BackendResponseJson.decodeFromString(raw),
+    )
+}
+
+@Serializable
+private data class AnalyzeImageMetadata(
+    val clientId: String,
+    val capturedAt: Long,
+)
+
+private data class BackendAnalyzePayload(
+    val rawJson: String,
+    val parsed: AnalyzeBatchResponse,
+)
+
+private fun ScreenshotImage.bestTimestampMillis(): Long {
+    return dateTakenMillis
+        ?: dateAddedMillis
+        ?: dateModifiedMillis
+        ?: System.currentTimeMillis()
+}
+
+private fun BackendAnalyzePayload?.toUploadResult(
+    uploads: List<PendingScreenshotUpload>,
+    durationMillis: Long,
+): AnalyzeUploadResult {
+    val payload = this ?: error("백엔드 응답이 비어 있습니다.")
+    val response = payload.parsed
+    val clientIds = uploads.map { it.clientCaptureId }.toSet()
+    val group = response.groups.firstOrNull { group ->
+        group.memberClientIds.any { it in clientIds }
+    }
+        ?: response.groups.firstOrNull()
+    val analysis = group?.analysis ?: AnalyzeCaptureResponse(
+        title = "저장 제외",
+        summary = "백엔드가 분석 가능한 OCR 텍스트를 찾지 못했거나 유용하지 않다고 판단했습니다.",
+        category = "unknown",
+        isUseful = false,
+    )
+    val isBatch = uploads.size > 1
+    val usefulGroupCount = response.groups.count { it.analysis.isUseful }
+    return AnalyzeUploadResult(
+        clientCaptureId = if (isBatch) "${uploads.size}개 이미지" else uploads.firstOrNull()?.clientCaptureId.orEmpty(),
+        localImageUri = if (isBatch) {
+            uploads.joinToString { it.screenshot.displayName.ifBlank { it.screenshot.uri.lastPathSegment.orEmpty() } }
+        } else {
+            uploads.firstOrNull()?.screenshot?.uri?.toString().orEmpty()
+        },
+        durationMillis = durationMillis,
+        uploadedImageCount = uploads.size,
+        groupCount = response.groups.size,
+        isUseful = if (isBatch) usefulGroupCount > 0 else analysis.isUseful,
+        serverMemoId = if (isBatch) null else analysis.serverMemoId,
+        title = if (isBatch) {
+            "배치 분석 완료: ${response.groups.size}개 그룹"
+        } else {
+            analysis.title
+        },
+        summary = if (isBatch) {
+            response.groups.joinToString(separator = "\n") { group ->
+                "- ${group.analysis.title}: ${group.analysis.summary}"
+            }.ifBlank { "백엔드가 분석 가능한 그룹을 반환하지 않았습니다." }
+        } else {
+            analysis.summary
+        },
+        category = if (isBatch) "batch" else analysis.category,
+        recommendedAction = if (isBatch) null else analysis.recommendedAction,
+        reminderAt = if (isBatch) null else analysis.reminderAt,
+        rawBackendResponse = payload.rawJson,
+    )
 }
 
 fun requiredImagePermission(): String {

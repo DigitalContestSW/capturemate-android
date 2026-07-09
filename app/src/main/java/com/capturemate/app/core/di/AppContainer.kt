@@ -3,11 +3,8 @@ package com.capturemate.app.core.di
 import android.content.Context
 import androidx.room.Room
 import com.capturemate.app.BuildConfig
-import com.capturemate.app.core.ai.MlKitOcrTextExtractor
-import com.capturemate.app.core.ai.OcrTextExtractor
 import com.capturemate.app.core.auth.GoogleSignInClient
 import com.capturemate.app.core.calendar.GoogleCalendarClient
-import com.capturemate.app.core.privacy.SensitiveTextMasker
 import com.capturemate.app.data.local.AuthSessionStore
 import com.capturemate.app.data.local.CaptureMateDatabase
 import com.capturemate.app.data.local.CaptureMateDatabase.Companion.MIGRATION_1_2
@@ -47,14 +44,6 @@ class AppContainer(context: Context) {
         builder.build()
     }
 
-    val ocrTextExtractor: OcrTextExtractor by lazy {
-        MlKitOcrTextExtractor(appContext)
-    }
-
-    val sensitiveTextMasker: SensitiveTextMasker by lazy {
-        SensitiveTextMasker()
-    }
-
     val googleSignInClient: GoogleSignInClient by lazy {
         GoogleSignInClient(
             context = appContext,
@@ -91,10 +80,10 @@ class AppContainer(context: Context) {
 
         OkHttpClient.Builder()
             .addInterceptor(logging)
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
-            .callTimeout(75, TimeUnit.SECONDS)
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(180, TimeUnit.SECONDS)
+            .callTimeout(180, TimeUnit.SECONDS)
             .build()
     }
 

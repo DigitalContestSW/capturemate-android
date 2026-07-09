@@ -56,23 +56,15 @@ fun DebugOcrRoute(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(
-                text = "OCR Debug",
+                text = "Backend OCR Debug",
                 style = MaterialTheme.typography.headlineMedium,
             )
             Text(
-                text = "Screenshots 폴더의 최신 이미지를 가져와 ML Kit OCR 결과와 실행 시간을 확인합니다.",
+                text = "스크린샷 이미지를 백엔드로 업로드하고 서버 OCR, 마스킹, 분석 응답을 확인합니다.",
                 style = MaterialTheme.typography.bodyMedium,
             )
 
             StatusSection(state = state)
-            AssetSampleSection(
-                state = state,
-                onRefreshSamples = viewModel::refreshSampleList,
-                onRunSamples = viewModel::runAllSampleOcr,
-                onMaskSamples = viewModel::runAllSampleMasking,
-                onClearSamples = viewModel::clearSampleResults,
-                onSelectResult = viewModel::selectSampleResult,
-            )
 
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
@@ -89,185 +81,34 @@ fun DebugOcrRoute(
                     onClick = viewModel::loadLatestScreenshot,
                     enabled = state.hasImagePermission && !state.isBusy,
                 ) {
-                    Text("최신 스크린샷 가져오기")
+                    Text("최신 목록")
+                }
+                Button(
+                    onClick = viewModel::uploadSelectedScreenshot,
+                    enabled = state.hasImagePermission && state.selectedScreenshot != null && !state.isBusy,
+                ) {
+                    Text("선택 업로드")
+                }
+                Button(
+                    onClick = viewModel::uploadLatestScreenshots,
+                    enabled = state.hasImagePermission && !state.isBusy,
+                ) {
+                    Text("목록 전체 업로드")
                 }
                 OutlinedButton(
                     onClick = viewModel::toggleAutoDetection,
                     enabled = state.hasImagePermission && !state.isBusy,
                 ) {
-                    Text(if (state.isAutoDetecting) "자동 감지 중지" else "자동 감지 시작")
-                }
-                Button(
-                    onClick = viewModel::runOcrOnSelected,
-                    enabled = state.hasImagePermission && state.selectedScreenshot != null && !state.isBusy,
-                ) {
-                    Text("OCR 실행")
-                }
-                Button(
-                    onClick = viewModel::runMaskOnCurrentOcr,
-                    enabled = state.ocrText.isNotBlank() && !state.isBusy,
-                ) {
-                    Text("마스킹 실행")
-                }
-                Button(
-                    onClick = viewModel::loadLatestScreenshotAndRunOcr,
-                    enabled = state.hasImagePermission && !state.isBusy,
-                ) {
-                    Text("최신 스크린샷 OCR 실행")
+                    Text(if (state.isAutoDetecting) "자동 업로드 중지" else "자동 업로드 시작")
                 }
             }
 
-            ScreenshotSection(screenshot = state.selectedScreenshot)
-            OcrResultSection(state = state)
-            MaskResultSection(state = state)
-        }
-    }
-}
-
-@Composable
-private fun AssetSampleSection(
-    state: DebugOcrUiState,
-    onRefreshSamples: () -> Unit,
-    onRunSamples: () -> Unit,
-    onMaskSamples: () -> Unit,
-    onClearSamples: () -> Unit,
-    onSelectResult: (String) -> Unit,
-) {
-    SectionTitle("샘플 이미지 일괄 OCR")
-    Text(
-        text = "app/src/main/assets/ocr_samples 에 넣은 테스트 이미지를 이름순으로 OCR합니다.",
-        style = MaterialTheme.typography.bodyMedium,
-    )
-    FlowRow(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Button(
-            onClick = onRefreshSamples,
-            enabled = !state.isBusy,
-        ) {
-            Text("샘플 목록 새로고침")
-        }
-        Button(
-            onClick = onRunSamples,
-            enabled = !state.isBusy,
-        ) {
-            Text("샘플 전체 OCR 실행")
-        }
-        Button(
-            onClick = onMaskSamples,
-            enabled = !state.isBusy && state.sampleResults.any { it.isSuccess && it.text.isNotBlank() },
-        ) {
-            Text("샘플 전체 마스킹 실행")
-        }
-        OutlinedButton(
-            onClick = onClearSamples,
-            enabled = !state.isBusy && state.sampleResults.isNotEmpty(),
-        ) {
-            Text("결과 지우기")
-        }
-    }
-
-    DebugValue(label = "샘플 개수", value = state.sampleFiles.size.toString())
-    SampleSummary(state = state)
-
-    if (state.sampleResults.isNotEmpty()) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            state.sampleResults.forEach { result ->
-                OutlinedButton(
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = { onSelectResult(result.sample.assetPath) },
-                ) {
-                    Text(
-                        text = buildString {
-                            append(result.sample.displayName)
-                            append(" | ")
-                            if (result.isSuccess) {
-                                append("${result.durationMillis}ms")
-                                append(" | ${result.charCount}자")
-                                if (result.hasMaskResult) {
-                                    append(" | 민감 ${result.detectedSensitiveTypes.size}")
-                                }
-                            } else {
-                                append("실패")
-                            }
-                        },
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-        }
-
-        SampleResultDetail(result = state.selectedSampleResult)
-    }
-
-    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-}
-
-@Composable
-private fun SampleSummary(state: DebugOcrUiState) {
-    if (state.sampleResults.isEmpty()) {
-        DebugValue(label = "일괄 결과", value = "-")
-        return
-    }
-
-    val successCount = state.sampleResults.count { it.isSuccess }
-    val average = state.averageSampleDurationMillis?.let { "${it}ms" } ?: "-"
-    DebugValue(
-        label = "일괄 결과",
-        value = "성공 $successCount/${state.sampleResults.size}, 평균 $average",
-    )
-}
-
-@Composable
-private fun SampleResultDetail(result: OcrSampleResult?) {
-    SectionTitle("선택한 샘플 OCR 원문")
-    if (result == null) {
-        Text(
-            text = "선택된 결과가 없습니다.",
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        return
-    }
-
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        DebugValue(label = "파일", value = result.sample.displayName)
-        DebugValue(label = "OCR 실행 시간", value = result.durationMillis?.let { "${it}ms" } ?: "-")
-        DebugValue(label = "글자 수", value = result.charCount.toString())
-        DebugValue(label = "마스킹 실행 시간", value = result.maskDurationMillis?.let { "${it}ms" } ?: "-")
-        DebugValue(label = "감지 타입", value = result.detectedSensitiveTypes.joinToString().ifBlank { "-" })
-        if (result.errorMessage != null) {
-            Text(
-                text = result.errorMessage,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
+            ScreenshotSection(
+                screenshots = state.latestScreenshots,
+                selectedScreenshot = state.selectedScreenshot,
+                onSelectScreenshot = viewModel::selectScreenshot,
             )
-        } else if (result.text.isBlank()) {
-            Text(
-                text = "OCR 결과가 비어 있습니다.",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        } else {
-            Text(
-                text = result.text,
-                style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
-            )
-        }
-        if (result.hasMaskResult) {
-            SectionTitle("선택한 샘플 마스킹 결과")
-            if (result.maskedText.isBlank()) {
-                Text(
-                    text = "마스킹 결과가 비어 있습니다.",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            } else {
-                Text(
-                    text = result.maskedText,
-                    style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
-                )
-            }
+            UploadResultSection(result = state.lastUploadResult)
         }
     }
 }
@@ -287,14 +128,10 @@ private fun StatusSection(state: DebugOcrUiState) {
                 text = state.statusMessage,
                 style = MaterialTheme.typography.titleSmall,
             )
-            Text(
-                text = "권한: ${if (state.hasImagePermission) "허용" else "필요"}",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Text(
-                text = "자동 감지: ${if (state.isAutoDetecting) "실행 중" else "중지"}",
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            DebugValue(label = "권한", value = if (state.hasImagePermission) "허용" else "필요")
+            DebugValue(label = "자동 업로드", value = if (state.isAutoDetecting) "실행 중" else "중지")
+            DebugValue(label = "처리 완료", value = state.processedCount.toString())
+            DebugValue(label = "중복 건너뜀", value = state.skippedDuplicateCount.toString())
             if (state.errorMessage != null) {
                 Text(
                     text = state.errorMessage,
@@ -307,9 +144,40 @@ private fun StatusSection(state: DebugOcrUiState) {
 }
 
 @Composable
-private fun ScreenshotSection(screenshot: ScreenshotImage?) {
+private fun ScreenshotSection(
+    screenshots: List<ScreenshotImage>,
+    selectedScreenshot: ScreenshotImage?,
+    onSelectScreenshot: (String) -> Unit,
+) {
+    SectionTitle("최신 스크린샷")
+    DebugValue(label = "조회 개수", value = screenshots.size.toString())
+
+    if (screenshots.isNotEmpty()) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            screenshots.forEach { screenshot ->
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { onSelectScreenshot(screenshot.uri.toString()) },
+                ) {
+                    Text(
+                        text = buildString {
+                            if (screenshot.uri == selectedScreenshot?.uri) {
+                                append("선택됨 | ")
+                            }
+                            append(screenshot.displayName.ifBlank { screenshot.uri.lastPathSegment.orEmpty() })
+                            append(" | ")
+                            append(screenshot.dateAddedMillis.formatMillis())
+                        },
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+    }
+
     SectionTitle("선택된 스크린샷")
-    if (screenshot == null) {
+    if (selectedScreenshot == null) {
         Text(
             text = "아직 선택된 스크린샷이 없습니다.",
             style = MaterialTheme.typography.bodyMedium,
@@ -318,59 +186,54 @@ private fun ScreenshotSection(screenshot: ScreenshotImage?) {
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        DebugValue(label = "파일", value = screenshot.displayName)
-        DebugValue(label = "경로", value = screenshot.relativePath)
-        DebugValue(label = "URI", value = screenshot.uri.toString())
-        DebugValue(label = "추가 시간", value = screenshot.dateAddedMillis.formatMillis())
-        DebugValue(label = "수정 시간", value = screenshot.dateModifiedMillis.formatMillis())
-        DebugValue(label = "촬영 시간", value = screenshot.dateTakenMillis.formatMillis())
+        DebugValue(label = "파일", value = selectedScreenshot.displayName)
+        DebugValue(label = "경로", value = selectedScreenshot.relativePath)
+        DebugValue(label = "URI", value = selectedScreenshot.uri.toString())
+        DebugValue(label = "추가 시간", value = selectedScreenshot.dateAddedMillis.formatMillis())
+        DebugValue(label = "수정 시간", value = selectedScreenshot.dateModifiedMillis.formatMillis())
+        DebugValue(label = "촬영 시간", value = selectedScreenshot.dateTakenMillis.formatMillis())
     }
 }
 
 @Composable
-private fun OcrResultSection(state: DebugOcrUiState) {
-    SectionTitle("OCR 결과")
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        DebugValue(label = "실행 시간", value = state.ocrDurationMillis?.let { "${it}ms" } ?: "-")
-        DebugValue(label = "글자 수", value = state.ocrCharCount.toString())
-        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-        if (state.ocrText.isBlank()) {
-            Text(
-                text = "OCR 결과가 없습니다.",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        } else {
-            Text(
-                text = state.ocrText,
-                style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
-            )
-        }
+private fun UploadResultSection(result: AnalyzeUploadResult?) {
+    SectionTitle("백엔드 분석 결과")
+    if (result == null) {
+        Text(
+            text = "아직 업로드 결과가 없습니다.",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        return
     }
-}
 
-@Composable
-private fun MaskResultSection(state: DebugOcrUiState) {
-    SectionTitle("마스킹 결과")
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        DebugValue(label = "실행 시간", value = state.maskDurationMillis?.let { "${it}ms" } ?: "-")
-        DebugValue(label = "감지 타입", value = state.detectedSensitiveTypes.joinToString().ifBlank { "-" })
+        DebugValue(label = "클라이언트 캡처 ID", value = result.clientCaptureId)
+        DebugValue(label = "서버 메모 ID", value = result.serverMemoId.orEmpty())
+        DebugValue(label = "유용성", value = result.isUseful?.toString() ?: "-")
+        DebugValue(label = "업로드/분석 시간", value = "${result.durationMillis}ms")
+        DebugValue(label = "제목", value = result.title)
+        DebugValue(label = "카테고리", value = result.category)
+        DebugValue(label = "추천 액션", value = result.recommendedAction.orEmpty())
+        DebugValue(label = "리마인드", value = result.reminderAt.formatMillis())
         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-        if (!state.hasSingleMaskResult) {
-            Text(
-                text = "마스킹 결과가 없습니다.",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        } else if (state.maskedText.isBlank()) {
-            Text(
-                text = "마스킹 결과가 비어 있습니다.",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        } else {
-            Text(
-                text = state.maskedText,
-                style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
-            )
-        }
+        Text(
+            text = "요약",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = result.summary.ifBlank { "-" },
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Text(
+            text = "백엔드 원본 응답",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = result.rawBackendResponse.ifBlank { "-" },
+            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+        )
     }
 }
 

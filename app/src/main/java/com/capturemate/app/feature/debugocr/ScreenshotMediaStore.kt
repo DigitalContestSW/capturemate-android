@@ -24,6 +24,10 @@ class ScreenshotMediaStore(
     private val contentResolver: ContentResolver = context.contentResolver
 
     fun findLatestScreenshot(): ScreenshotImage? {
+        return findLatestScreenshots(limit = 1).firstOrNull()
+    }
+
+    fun findLatestScreenshots(limit: Int): List<ScreenshotImage> {
         val collection = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
         val projection = arrayOf(
             MediaStore.Images.Media._ID,
@@ -42,20 +46,20 @@ class ScreenshotMediaStore(
         val sortOrder = "${MediaStore.Images.Media.DATE_ADDED} DESC, ${MediaStore.Images.Media.DATE_MODIFIED} DESC"
 
         return contentResolver.query(collection, projection, selection, selectionArgs, sortOrder)?.use { cursor ->
-            if (!cursor.moveToFirst()) {
-                return@use null
+            val screenshots = mutableListOf<ScreenshotImage>()
+            while (cursor.moveToNext() && screenshots.size < limit) {
+                val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID))
+                screenshots += ScreenshotImage(
+                    uri = ContentUris.withAppendedId(collection, id),
+                    displayName = cursor.getStringOrEmpty(MediaStore.Images.Media.DISPLAY_NAME),
+                    relativePath = cursor.getStringOrEmpty(MediaStore.Images.Media.RELATIVE_PATH),
+                    dateAddedMillis = cursor.getSecondsAsMillis(MediaStore.Images.Media.DATE_ADDED),
+                    dateModifiedMillis = cursor.getSecondsAsMillis(MediaStore.Images.Media.DATE_MODIFIED),
+                    dateTakenMillis = cursor.getLongOrNull(MediaStore.Images.Media.DATE_TAKEN),
+                )
             }
-
-            val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID))
-            ScreenshotImage(
-                uri = ContentUris.withAppendedId(collection, id),
-                displayName = cursor.getStringOrEmpty(MediaStore.Images.Media.DISPLAY_NAME),
-                relativePath = cursor.getStringOrEmpty(MediaStore.Images.Media.RELATIVE_PATH),
-                dateAddedMillis = cursor.getSecondsAsMillis(MediaStore.Images.Media.DATE_ADDED),
-                dateModifiedMillis = cursor.getSecondsAsMillis(MediaStore.Images.Media.DATE_MODIFIED),
-                dateTakenMillis = cursor.getLongOrNull(MediaStore.Images.Media.DATE_TAKEN),
-            )
-        }
+            screenshots
+        }.orEmpty()
     }
 
     fun registerObserver(onChanged: () -> Unit): ContentObserver {
