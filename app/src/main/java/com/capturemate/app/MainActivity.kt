@@ -3,8 +3,10 @@ package com.capturemate.app
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -22,11 +24,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -67,19 +71,32 @@ private enum class Tab { Home, MemoList, Settings }
 class MainActivity : FragmentActivity() {
 
     private var pendingMemoIdFromNotification by mutableStateOf<String?>(null)
+    private var showBackgroundLocationPermissionDialog by mutableStateOf(false)
+    private var completeOnboardingAfterPermissionFlow: (() -> Unit)? = null
+    private var pendingBackgroundLocationCompletion: (() -> Unit)? = null
+
+    private val requestGalleryPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { requestNotificationPermissionForOnboarding() }
 
     private val requestNotificationPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
-    ) { /* Permission result is only needed before scheduling future notifications. */ }
+    ) { requestFineLocationPermissionForOnboarding() }
 
     private val requestFineLocationPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
-    ) { /* Location permission result is handled by retrying the toggle if needed. */ }
+    ) { granted ->
+        if (granted && needsBackgroundLocationPermission()) {
+            pendingBackgroundLocationCompletion = completeOnboardingAfterPermissionFlow
+            showBackgroundLocationPermissionDialog = true
+        } else if (completeOnboardingAfterPermissionFlow != null) {
+            finishPostOnboardingPermissionFlow()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        requestNotificationPermissionIfNeeded()
         pendingMemoIdFromNotification = intent.getStringExtra(EXTRA_MEMO_ID)
 
         val appContainer = (application as CaptureMateApplication).appContainer
@@ -123,7 +140,13 @@ class MainActivity : FragmentActivity() {
                     }
 
                     !homeUiState.onboardingCompleted -> {
-                        OnboardingRoute(onDone = { homeViewModel.completeOnboarding() })
+                        OnboardingRoute(
+                            onDone = {
+                                startPostOnboardingPermissionFlow {
+                                    homeViewModel.completeOnboarding()
+                                }
+                            },
+                        )
                     }
 
                     memoId != null -> {
@@ -228,6 +251,16 @@ class MainActivity : FragmentActivity() {
                         }
                     }
                 }
+
+                if (showBackgroundLocationPermissionDialog) {
+                    BackgroundLocationPermissionDialog(
+                        onOpenSettings = {
+                            openAppSettings()
+                            finishBackgroundLocationPermissionStep()
+                        },
+                        onDismiss = { finishBackgroundLocationPermissionStep() },
+                    )
+                }
             }
         }
     }
@@ -238,20 +271,40 @@ class MainActivity : FragmentActivity() {
         pendingMemoIdFromNotification = intent.getStringExtra(EXTRA_MEMO_ID)
     }
 
-    private fun requestNotificationPermissionIfNeeded() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+    private fun startPostOnboardingPermissionFlow(onComplete: () -> Unit) {
+        completeOnboardingAfterPermissionFlow = onComplete
+        requestGalleryPermissionForOnboarding()
+    }
+
+    private fun requestGalleryPermissionForOnboarding() {
+        val permission = requiredImagePermission()
+        val granted = ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+        if (granted) {
+            requestNotificationPermissionForOnboarding()
+        } else {
+            requestGalleryPermission.launch(permission)
+        }
+    }
+
+    private fun requestNotificationPermissionForOnboarding() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            requestFineLocationPermissionForOnboarding()
+            return
+        }
 
         val granted = ContextCompat.checkSelfPermission(
             this,
             Manifest.permission.POST_NOTIFICATIONS,
         ) == PackageManager.PERMISSION_GRANTED
 
-        if (!granted) {
+        if (granted) {
+            requestFineLocationPermissionForOnboarding()
+        } else {
             requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
 
-    private fun requestFineLocationPermissionIfNeeded(): Boolean {
+    private fun requestFineLocationPermissionForOnboarding() {
         val granted = ContextCompat.checkSelfPermission(
             this,
             Manifest.permission.ACCESS_FINE_LOCATION,
@@ -259,14 +312,103 @@ class MainActivity : FragmentActivity() {
 
         if (!granted) {
             requestFineLocationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+            return
         }
 
-        return granted
+        if (needsBackgroundLocationPermission()) {
+            pendingBackgroundLocationCompletion = completeOnboardingAfterPermissionFlow
+            showBackgroundLocationPermissionDialog = true
+        } else {
+            finishPostOnboardingPermissionFlow()
+        }
+    }
+
+    private fun finishPostOnboardingPermissionFlow() {
+        completeOnboardingAfterPermissionFlow?.invoke()
+        completeOnboardingAfterPermissionFlow = null
+    }
+
+    private fun finishBackgroundLocationPermissionStep() {
+        showBackgroundLocationPermissionDialog = false
+        pendingBackgroundLocationCompletion?.invoke()
+        pendingBackgroundLocationCompletion = null
+        completeOnboardingAfterPermissionFlow = null
+    }
+
+    private fun requestFineLocationPermissionIfNeeded(): Boolean {
+        val fineLocationGranted = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (!fineLocationGranted) {
+            requestFineLocationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+            return false
+        }
+
+        if (needsBackgroundLocationPermission()) {
+            showBackgroundLocationPermissionDialog = true
+            return false
+        }
+
+        return true
+    }
+
+    private fun needsBackgroundLocationPermission(): Boolean {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_BACKGROUND_LOCATION,
+            ) != PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun openAppSettings() {
+        val intent = Intent(
+            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+            Uri.fromParts("package", packageName, null),
+        )
+        startActivity(intent)
+    }
+
+    private fun requiredImagePermission(): String {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Manifest.permission.READ_MEDIA_IMAGES
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
     }
 
     companion object {
         const val EXTRA_MEMO_ID = "memoId"
     }
+}
+
+@Composable
+private fun BackgroundLocationPermissionDialog(
+    onOpenSettings: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(text = "근처 알림을 사용하려면 위치 권한이 필요해요")
+        },
+        text = {
+            Text(
+                text = "앱이 닫혀 있어도 저장한 맛집 근처에 도착하면 알려드리기 위해 위치 권한을 항상 허용으로 변경해주세요.",
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onOpenSettings) {
+                Text(text = "설정으로 이동")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = "나중에")
+            }
+        },
+    )
 }
 
 @Composable

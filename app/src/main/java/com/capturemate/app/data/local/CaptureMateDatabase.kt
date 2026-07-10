@@ -52,29 +52,19 @@ abstract class CaptureMateDatabase : RoomDatabase() {
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL(
-                    """
-                    CREATE TABLE IF NOT EXISTS `schedule_items` (
-                        `id` TEXT NOT NULL,
-                        `memoId` TEXT NOT NULL,
-                        `eventTitle` TEXT NOT NULL,
-                        `deadlineAt` INTEGER,
-                        `eventDateText` TEXT,
-                        `location` TEXT,
-                        `screenshotUris` TEXT NOT NULL,
-                        `customReminderAt` INTEGER,
-                        `createdAt` INTEGER NOT NULL,
-                        PRIMARY KEY(`id`)
-                    )
-                    """.trimIndent(),
-                )
+                db.ensureScheduleItemsTable()
             }
         }
 
         val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE `schedule_items` ADD COLUMN `googleCalendarEventId` TEXT")
-                db.execSQL("ALTER TABLE `schedule_items` ADD COLUMN `googleCalendarHtmlLink` TEXT")
+                db.ensureScheduleItemsTable()
+                if (!db.hasColumn("schedule_items", "googleCalendarEventId")) {
+                    db.execSQL("ALTER TABLE `schedule_items` ADD COLUMN `googleCalendarEventId` TEXT")
+                }
+                if (!db.hasColumn("schedule_items", "googleCalendarHtmlLink")) {
+                    db.execSQL("ALTER TABLE `schedule_items` ADD COLUMN `googleCalendarHtmlLink` TEXT")
+                }
             }
         }
 
@@ -238,4 +228,23 @@ private fun SupportSQLiteDatabase.hasColumn(tableName: String, columnName: Strin
         }
     }
     return false
+}
+
+private fun SupportSQLiteDatabase.ensureScheduleItemsTable() {
+    execSQL(
+        """
+        CREATE TABLE IF NOT EXISTS `schedule_items` (
+            `id` TEXT NOT NULL,
+            `memoId` TEXT NOT NULL,
+            `eventTitle` TEXT NOT NULL,
+            `deadlineAt` INTEGER,
+            `eventDateText` TEXT,
+            `location` TEXT,
+            `screenshotUris` TEXT NOT NULL,
+            `customReminderAt` INTEGER,
+            `createdAt` INTEGER NOT NULL,
+            PRIMARY KEY(`id`)
+        )
+        """.trimIndent(),
+    )
 }
