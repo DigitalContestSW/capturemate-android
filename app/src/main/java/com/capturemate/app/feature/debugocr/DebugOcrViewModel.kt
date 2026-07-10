@@ -229,6 +229,39 @@ class DebugOcrViewModel(
         }
     }
 
+    fun createDebugSampleMemos() {
+        viewModelScope.launch {
+            updateState {
+                it.copy(
+                    isBusy = true,
+                    statusMessage = "Creating sample memos...",
+                    errorMessage = null,
+                )
+            }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    appContainer.captureRepository.createDebugSampleMemos()
+                }
+            }.onSuccess {
+                updateState {
+                    it.copy(
+                        isBusy = false,
+                        statusMessage = "Sample memos created. Open the memo tab to review details.",
+                        errorMessage = null,
+                    )
+                }
+            }.onFailure { throwable ->
+                updateState {
+                    it.copy(
+                        isBusy = false,
+                        statusMessage = "Failed to create sample memos.",
+                        errorMessage = throwable.message ?: throwable::class.java.simpleName,
+                    )
+                }
+            }
+        }
+    }
+
     private fun startAutoDetection() {
         if (!ensurePermission()) return
         if (observer != null) return
@@ -401,20 +434,27 @@ class DebugOcrViewModel(
                     ),
                 )
             }
-            appContainer.captureRepository.upsertMemo(
-                MemoEntity(
-                    id = group.analysis.serverMemoId ?: UUID.randomUUID().toString(),
-                    captureId = group.memberClientIds.firstOrNull(),
-                    serverMemoId = group.analysis.serverMemoId,
-                    title = group.analysis.title,
-                    summary = group.analysis.summary,
-                    category = group.analysis.category,
-                    recommendedAction = group.analysis.recommendedAction,
-                    reminderAt = group.analysis.reminderAt,
-                    status = MemoStatus.Pending.name,
-                    createdAt = createdAt,
-                    updatedAt = createdAt,
-                ),
+            val memo = MemoEntity(
+                id = group.analysis.serverMemoId ?: UUID.randomUUID().toString(),
+                captureId = group.memberClientIds.firstOrNull(),
+                serverMemoId = group.analysis.serverMemoId,
+                title = group.analysis.title,
+                summary = group.analysis.summary,
+                category = group.analysis.category,
+                recommendedAction = group.analysis.recommendedAction,
+                reminderAt = group.analysis.reminderAt,
+                status = MemoStatus.Pending.name,
+                createdAt = createdAt,
+                updatedAt = createdAt,
+            )
+            appContainer.captureRepository.upsertMemo(memo)
+            appContainer.captureRepository.upsertMemoDetails(
+                memo = memo,
+                analysis = group.analysis,
+                screenshotUris = group.memberClientIds.mapNotNull { clientId ->
+                    uploadsByClientId[clientId]?.screenshot?.uri?.toString()
+                },
+                createdAt = createdAt,
             )
         }
     }

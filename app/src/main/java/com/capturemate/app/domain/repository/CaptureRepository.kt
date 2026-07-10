@@ -8,6 +8,7 @@ import com.capturemate.app.data.local.entity.LifeInfoItemEntity
 import com.capturemate.app.data.local.entity.MemoEntity
 import com.capturemate.app.data.local.entity.ScheduleItemEntity
 import com.capturemate.app.data.local.entity.StudyItemEntity
+import com.capturemate.app.data.remote.dto.AnalyzeCaptureResponse
 import com.capturemate.app.domain.model.RestaurantGroup
 import com.capturemate.app.domain.model.RestaurantMapState
 import com.capturemate.app.domain.model.RestaurantMemo
@@ -30,6 +31,7 @@ interface CaptureRepository {
     fun observeRestaurantGroup(groupId: String): Flow<RestaurantGroup?>
 
     suspend fun createDebugRestaurantPlace()
+    suspend fun createDebugSampleMemos()
     suspend fun analyzeAndCreateMemo(captureId: String, maskedText: String): MemoEntity
     suspend fun confirmMemo(memoId: String)
     suspend fun deleteMemo(memoId: String)
@@ -50,6 +52,12 @@ interface CaptureRepository {
     ): AddToGoogleCalendarResult
     suspend fun upsertCapture(capture: CaptureEntity)
     suspend fun upsertMemo(memo: MemoEntity)
+    suspend fun upsertMemoDetails(
+        memo: MemoEntity,
+        analysis: AnalyzeCaptureResponse,
+        screenshotUris: List<String>,
+        createdAt: Long,
+    )
 }
 
 sealed interface AddToGoogleCalendarResult {
