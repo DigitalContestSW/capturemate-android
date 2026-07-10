@@ -2,6 +2,7 @@ package com.capturemate.app.data.repository
 
 import android.content.Context
 import android.content.Intent
+import com.capturemate.app.core.location.RestaurantGeofenceManager
 import com.capturemate.app.core.notification.NotificationScheduler
 import com.capturemate.app.core.calendar.CalendarAuthorizationResult
 import com.capturemate.app.core.calendar.GoogleCalendarClient
@@ -57,6 +58,7 @@ class DefaultCaptureRepository(
     private val scheduleItemDao: ScheduleItemDao,
     private val googleCalendarClient: GoogleCalendarClient,
     private val restaurantMemoDao: RestaurantMemoDao,
+    private val restaurantGeofenceManager: RestaurantGeofenceManager,
     private val captureMateApi: CaptureMateApi,
     private val json: Json,
     private val appContext: Context,
@@ -127,91 +129,7 @@ class DefaultCaptureRepository(
             group?.let { RestaurantGroup(group = it, restaurants = restaurants) }
         }
 
-    override suspend fun createDebugRestaurantPlace() {
-        val now = System.currentTimeMillis()
-        val memo = MemoEntity(
-            id = DEBUG_RESTAURANT_MEMO_ID,
-            captureId = "debug-restaurant-capture-baeksogjeong",
-            serverMemoId = null,
-            title = "백소정 안암본점",
-            summary = "안암역 근처 돈카츠, 마제소바, 냉소바 메뉴가 있는 실제 매장입니다.",
-            category = CaptureCategory.Restaurant.name,
-            recommendedAction = "네이버맵 핀 표시 테스트",
-            reminderAt = null,
-            status = MemoStatus.Saved.name,
-            createdAt = now,
-            updatedAt = now,
-        )
-        captureDao.upsertMemo(memo)
-
-        restaurantMemoDao.upsertRestaurantAnalysis(
-            restaurant = RestaurantMemoEntity(
-                id = DEBUG_RESTAURANT_ID,
-                memoId = memo.id,
-                captureId = memo.captureId,
-                name = memo.title,
-                summary = memo.summary,
-                address = "서울 성북구 안암동5가",
-                roadAddress = "서울 성북구 고려대로24길 6",
-                neighborhood = "안암동",
-                latitude = 37.5876985082328,
-                longitude = 127.029404929757,
-                mapProvider = "naver",
-                mapProviderPlaceId = "debug-baeksogjeong-anam",
-                estimatedPricePerPersonMin = 10000,
-                estimatedPricePerPersonMax = 16000,
-                confidence = 1.0,
-                needsUserReview = false,
-                createdAt = now,
-                updatedAt = now,
-            ),
-            menus = listOf(
-                RestaurantMenuEntity(
-                    id = "$DEBUG_RESTAURANT_ID-menu-1",
-                    restaurantMemoId = DEBUG_RESTAURANT_ID,
-                    name = "돈카츠",
-                    price = null,
-                    currency = "KRW",
-                    sortOrder = 0,
-                ),
-                RestaurantMenuEntity(
-                    id = "$DEBUG_RESTAURANT_ID-menu-2",
-                    restaurantMemoId = DEBUG_RESTAURANT_ID,
-                    name = "마제소바",
-                    price = null,
-                    currency = "KRW",
-                    sortOrder = 1,
-                ),
-            ),
-            tags = listOf(
-                RestaurantTagEntity(
-                    id = "$DEBUG_RESTAURANT_ID-tag-1",
-                    restaurantMemoId = DEBUG_RESTAURANT_ID,
-                    name = "돈카츠",
-                ),
-                RestaurantTagEntity(
-                    id = "$DEBUG_RESTAURANT_ID-tag-2",
-                    restaurantMemoId = DEBUG_RESTAURANT_ID,
-                    name = "안암",
-                ),
-            ),
-            features = emptyList(),
-            actions = emptyList(),
-            group = RestaurantGroupEntity(
-                id = "anam-restaurant",
-                title = "안암동 맛집",
-                neighborhood = "안암동",
-                representativeLatitude = 37.5876985082328,
-                representativeLongitude = 127.029404929757,
-                createdAt = now,
-                updatedAt = now,
-            ),
-            groupMember = RestaurantGroupMemberEntity(
-                groupId = "anam-restaurant",
-                restaurantMemoId = DEBUG_RESTAURANT_ID,
-            ),
-        )
-    }
+    override suspend fun createDebugRestaurantPlace() = Unit
 
     override suspend fun analyzeAndCreateMemo(captureId: String, maskedText: String): MemoEntity {
         throw UnsupportedOperationException(
@@ -301,6 +219,42 @@ class DefaultCaptureRepository(
             body = memo.title,
             triggerAtMillis = at,
         )
+    }
+
+    override suspend fun setRestaurantLocationReminderEnabled(
+        restaurantMemoId: String,
+        enabled: Boolean,
+        radiusMeters: Float,
+    ) {
+        if (!enabled) {
+            restaurantMemoDao.updateLocationReminder(
+                restaurantMemoId = restaurantMemoId,
+                enabled = false,
+                radiusMeters = radiusMeters,
+            )
+            restaurantGeofenceManager.unregister(restaurantMemoId)
+            return
+        }
+
+        val restaurant = restaurantMemoDao.getRestaurantMemo(restaurantMemoId) ?: return
+        val latitude = restaurant.latitude ?: return
+        val longitude = restaurant.longitude ?: return
+
+        val registered = restaurantGeofenceManager.register(
+            restaurantMemoId = restaurant.id,
+            memoId = restaurant.memoId,
+            name = restaurant.name,
+            latitude = latitude,
+            longitude = longitude,
+            radiusMeters = radiusMeters,
+        )
+        if (registered) {
+            restaurantMemoDao.updateLocationReminder(
+                restaurantMemoId = restaurantMemoId,
+                enabled = true,
+                radiusMeters = radiusMeters,
+            )
+        }
     }
 
     override suspend fun addScheduleToGoogleCalendar(
@@ -514,9 +468,5 @@ class DefaultCaptureRepository(
     private fun lifeInfoDeadlineReminderWorkName(memoId: String) = "lifeinfo_deadline_reminder_$memoId"
     private fun lifeInfoCustomReminderWorkName(memoId: String) = "lifeinfo_custom_reminder_$memoId"
 
-    private companion object {
-        const val DEBUG_RESTAURANT_MEMO_ID = "debug-memo-baeksogjeong-anam"
-        const val DEBUG_RESTAURANT_ID = "debug-restaurant-baeksogjeong-anam"
-    }
     private fun scheduleCustomReminderWorkName(memoId: String) = "schedule_custom_reminder_$memoId"
 }

@@ -1,5 +1,6 @@
 package com.capturemate.app.data.local.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -13,6 +14,7 @@ data class LifeInfoItemEntity(
     val deadline: Long,
     val deadlineReminderEnabled: Boolean,
     val customReminderAt: Long?,
+    @ColumnInfo(defaultValue = "'[]'")
     val screenshotUris: List<String> = emptyList(),
     val createdAt: Long,
 )
