@@ -1,6 +1,9 @@
 package com.capturemate.app.feature.memo
 
 import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -12,6 +15,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,6 +28,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
@@ -39,6 +44,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -62,6 +68,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.capturemate.app.data.local.entity.LifeInfoItemEntity
 import com.capturemate.app.data.local.entity.ScheduleItemEntity
 import com.capturemate.app.data.local.entity.StudyItemEntity
+import com.capturemate.app.domain.model.RestaurantMemo
 import com.capturemate.app.domain.repository.CaptureRepository
 import com.capturemate.app.feature.common.categoryIcon
 import com.capturemate.app.feature.common.categoryLabel
@@ -73,17 +80,21 @@ import com.capturemate.app.ui.theme.CaptureInk
 import com.capturemate.app.ui.theme.CaptureMuted
 import com.capturemate.app.ui.theme.CaptureMutedForeground
 import com.capturemate.app.ui.theme.CaptureSurface
+import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 private val reviewDayOptions = listOf(3, 7, 14, 30)
+private val NaverMapButtonBackground = Color(0xFFE8F8EE)
+private val NaverMapButtonContent = Color(0xFF03C75A)
 
 @Composable
 fun MemoDetailRoute(
     memoId: String,
     repository: CaptureRepository,
     onBack: () -> Unit,
+    onRequestFineLocationPermission: () -> Boolean = { true },
     viewModel: MemoViewModel = viewModel(factory = MemoViewModel.Factory(repository)),
 ) {
     val state by viewModel.detailState.collectAsState()
@@ -192,6 +203,20 @@ fun MemoDetailRoute(
                                 },
                                 onSetCustomReminderDate = { at ->
                                     viewModel.setScheduleCustomReminderDate(memo.id, at)
+                                },
+                            )
+                        }
+
+                        state.restaurantMemo?.let { restaurantMemo ->
+                            RestaurantSection(
+                                restaurantMemo = restaurantMemo,
+                                onLocationReminderChange = { restaurantMemoId, enabled, radiusMeters ->
+                                    if (enabled && !onRequestFineLocationPermission()) return@RestaurantSection
+                                    viewModel.setRestaurantLocationReminderEnabled(
+                                        restaurantMemoId = restaurantMemoId,
+                                        enabled = enabled,
+                                        radiusMeters = radiusMeters,
+                                    )
                                 },
                             )
                         }
@@ -632,6 +657,162 @@ private fun ScheduleSection(
     }
 }
 
+@Composable
+private fun RestaurantSection(
+    restaurantMemo: RestaurantMemo,
+    onLocationReminderChange: (String, Boolean, Float) -> Unit,
+) {
+    val restaurant = restaurantMemo.restaurant
+    val context = LocalContext.current
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        SectionCard {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(text = "맛집 정보", color = CaptureInk, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Surface(
+                    onClick = {
+                        openNaverMapSearch(
+                            context = context,
+                            name = restaurant.name,
+                            area = restaurant.neighborhood,
+                        )
+                    },
+                    shape = RoundedCornerShape(999.dp),
+                    color = NaverMapButtonBackground,
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                            contentDescription = null,
+                            modifier = Modifier.size(13.dp),
+                            tint = NaverMapButtonContent,
+                        )
+                        Text(
+                            text = "네이버맵에서 보기",
+                            modifier = Modifier.padding(start = 4.dp),
+                            color = NaverMapButtonContent,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
+            }
+            Text(text = restaurant.name, color = CaptureInk, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+
+            val chips = buildList {
+                restaurant.neighborhood?.let { add(it) }
+                addAll(restaurantMemo.tags.map { "#${it.name}" })
+            }
+            if (chips.isNotEmpty()) {
+                FlowRow(
+                    modifier = Modifier.padding(top = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    chips.forEach { chip ->
+                        Surface(shape = RoundedCornerShape(999.dp), color = CaptureMuted) {
+                            Text(
+                                text = chip,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                color = CaptureMutedForeground,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                    }
+                }
+            }
+
+            LabeledInfoRow(
+                label = "주소",
+                value = restaurant.address ?: restaurant.roadAddress ?: "주소 정보 없음",
+            )
+            formatRestaurantPriceRange(
+                restaurant.estimatedPricePerPersonMin,
+                restaurant.estimatedPricePerPersonMax,
+            )?.let { priceRange ->
+                LabeledInfoRow(label = "예산", value = priceRange)
+            }
+            if (restaurant.latitude == null || restaurant.longitude == null) {
+                Text(text = "좌표가 있는 맛집만 위치 알림을 설정할 수 있어요.", color = CaptureMutedForeground, fontSize = 12.sp)
+            }
+        }
+
+        if (restaurantMemo.menus.isNotEmpty()) {
+            SectionCard {
+                Text(text = "🍽 메뉴", color = CaptureInk, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                restaurantMemo.menus.forEach { menu ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(text = menu.name, color = CaptureInk, fontSize = 14.sp)
+                        Text(text = menu.price?.let(::formatRestaurantWon) ?: "-", color = CaptureMutedForeground, fontSize = 13.sp)
+                    }
+                }
+            }
+        }
+
+        if (restaurantMemo.features.isNotEmpty()) {
+            SectionCard {
+                Text(text = "특징", color = CaptureInk, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                restaurantMemo.features.forEach { feature ->
+                    Text(text = feature.text, color = CaptureInk, fontSize = 14.sp)
+                }
+            }
+        }
+
+        SectionCard {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Filled.Notifications,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = CaptureInk,
+                        )
+                        Text(
+                            text = "근처 알림",
+                            modifier = Modifier.padding(start = 6.dp),
+                            color = CaptureInk,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                    Text(
+                        text = "${restaurant.locationReminderRadiusMeters.toInt()}m 안에 들어오면 알려줘요",
+                        modifier = Modifier.padding(top = 2.dp),
+                        color = CaptureMutedForeground,
+                        fontSize = 12.sp,
+                    )
+                }
+                Switch(
+                    checked = restaurant.locationReminderEnabled,
+                    enabled = restaurant.latitude != null && restaurant.longitude != null,
+                    onCheckedChange = { enabled ->
+                        onLocationReminderChange(
+                            restaurant.id,
+                            enabled,
+                            restaurant.locationReminderRadiusMeters,
+                        )
+                    },
+                )
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ReminderPickerCard(initialDate: Long?, onSetCustomReminderDate: (Long?) -> Unit) {
@@ -763,6 +944,40 @@ private fun ScreenshotPreview(uri: String?, label: String) {
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
             )
+        }
+    }
+}
+
+private fun formatRestaurantPriceRange(min: Int?, max: Int?): String? =
+    when {
+        min != null && max != null -> "${formatRestaurantWon(min)} ~ ${formatRestaurantWon(max)}"
+        min != null -> "${formatRestaurantWon(min)} 이상"
+        max != null -> "${formatRestaurantWon(max)} 이하"
+        else -> null
+    }
+
+private fun formatRestaurantWon(value: Int): String =
+    NumberFormat.getNumberInstance(Locale.KOREA).format(value) + "원"
+
+private fun openNaverMapSearch(context: android.content.Context, name: String, area: String?) {
+    val query = listOfNotNull(name, area?.takeIf { it.isNotBlank() })
+        .joinToString(" ")
+    val encodedQuery = Uri.encode(query)
+    val appIntent = Intent(
+        Intent.ACTION_VIEW,
+        Uri.parse("nmap://search?query=$encodedQuery"),
+    )
+    val webIntent = Intent(
+        Intent.ACTION_VIEW,
+        Uri.parse("https://map.naver.com/p/search/$encodedQuery"),
+    )
+    runCatching {
+        context.startActivity(appIntent)
+    }.onFailure { throwable ->
+        if (throwable is ActivityNotFoundException) {
+            context.startActivity(webIntent)
+        } else {
+            throw throwable
         }
     }
 }

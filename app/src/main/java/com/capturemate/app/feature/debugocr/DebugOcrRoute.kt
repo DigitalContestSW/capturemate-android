@@ -101,6 +101,12 @@ fun DebugOcrRoute(
                 ) {
                     Text(if (state.isAutoDetecting) "자동 업로드 중지" else "자동 업로드 시작")
                 }
+                OutlinedButton(
+                    onClick = viewModel::createDebugSampleMemos,
+                    enabled = !state.isBusy,
+                ) {
+                    Text("Create sample memos")
+                }
             }
 
             ScreenshotSection(

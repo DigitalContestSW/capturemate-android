@@ -54,7 +54,6 @@ import com.capturemate.app.feature.home.SettingsRoute
 import com.capturemate.app.feature.memo.MemoDetailRoute
 import com.capturemate.app.feature.memo.MemoListRoute
 import com.capturemate.app.feature.memo.RemindersRoute
-import com.capturemate.app.feature.restaurant.RestaurantDetailRoute
 import com.capturemate.app.feature.restaurant.RestaurantGroupDetailRoute
 import com.capturemate.app.feature.restaurant.RestaurantMapRoute
 import com.capturemate.app.ui.theme.CaptureBorder
@@ -96,17 +95,17 @@ class MainActivity : FragmentActivity() {
                 val homeUiState by homeViewModel.uiState.collectAsState()
                 val session = homeUiState.session
                 var selectedMemoId by remember { mutableStateOf(pendingMemoIdFromNotification) }
-                var selectedRestaurantMemoId by remember { mutableStateOf<String?>(null) }
                 var selectedRestaurantGroupId by remember { mutableStateOf<String?>(null) }
                 var showRestaurantMap by remember { mutableStateOf(false) }
                 var showReminders by remember { mutableStateOf(false) }
+                var selectedTab by remember { mutableStateOf(Tab.Home) }
+                var memoListActiveCategory by remember { mutableStateOf("전체") }
 
                 LaunchedEffect(pendingMemoIdFromNotification) {
                     pendingMemoIdFromNotification?.let { selectedMemoId = it }
                 }
 
                 val memoId = selectedMemoId
-                val restaurantMemoId = selectedRestaurantMemoId
                 val restaurantGroupId = selectedRestaurantGroupId
 
                 when {
@@ -133,14 +132,6 @@ class MainActivity : FragmentActivity() {
                             memoId = memoId,
                             repository = repository,
                             onBack = { selectedMemoId = null },
-                        )
-                    }
-
-                    restaurantMemoId != null -> {
-                        BackHandler { selectedRestaurantMemoId = null }
-                        RestaurantDetailRoute(
-                            memoId = restaurantMemoId,
-                            repository = repository,
                             onRequestFineLocationPermission = {
                                 requestFineLocationPermissionIfNeeded()
                             },
@@ -152,7 +143,7 @@ class MainActivity : FragmentActivity() {
                         RestaurantGroupDetailRoute(
                             groupId = restaurantGroupId,
                             repository = repository,
-                            onRestaurantClick = { selectedRestaurantMemoId = it },
+                            onRestaurantClick = { selectedMemoId = it },
                         )
                     }
 
@@ -160,7 +151,7 @@ class MainActivity : FragmentActivity() {
                         BackHandler { showRestaurantMap = false }
                         RestaurantMapRoute(
                             repository = repository,
-                            onRestaurantClick = { selectedRestaurantMemoId = it },
+                            onRestaurantClick = { selectedMemoId = it },
                             onGroupClick = { selectedRestaurantGroupId = it },
                         )
                     }
@@ -178,8 +169,6 @@ class MainActivity : FragmentActivity() {
                     }
 
                     else -> {
-                        var selectedTab by remember { mutableStateOf(Tab.Home) }
-
                         Scaffold(
                             bottomBar = {
                                 Column(modifier = Modifier.background(CaptureSurface)) {
@@ -226,6 +215,8 @@ class MainActivity : FragmentActivity() {
                                         repository = repository,
                                         onMemoClick = { selectedMemoId = it },
                                         onOpenRestaurantMap = { showRestaurantMap = true },
+                                        activeCategory = memoListActiveCategory,
+                                        onActiveCategoryChange = { memoListActiveCategory = it },
                                     )
                                     Tab.Settings -> SettingsRoute(
                                         session = session,

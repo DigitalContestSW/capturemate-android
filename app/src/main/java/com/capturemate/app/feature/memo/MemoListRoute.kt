@@ -102,12 +102,13 @@ fun MemoListRoute(
     repository: CaptureRepository,
     onMemoClick: (String) -> Unit,
     onOpenRestaurantMap: () -> Unit,
+    activeCategory: String = CATEGORY_ALL,
+    onActiveCategoryChange: (String) -> Unit = {},
     viewModel: MemoViewModel = viewModel(factory = MemoViewModel.Factory(repository)),
     restaurantViewModel: RestaurantViewModel = viewModel(factory = RestaurantViewModel.Factory(repository)),
 ) {
     val state by viewModel.listState.collectAsState()
     val restaurantState by restaurantViewModel.mapState.collectAsState()
-    var activeCategory by remember { mutableStateOf(CATEGORY_ALL) }
     var sort by remember { mutableStateOf(SortOption.Latest) }
     var status by remember { mutableStateOf(StatusFilter.All) }
     var isGrid by remember { mutableStateOf(false) }
@@ -159,7 +160,7 @@ fun MemoListRoute(
             )
             CategoryTabs(
                 active = activeCategory,
-                onSelect = { category -> activeCategory = category },
+                onSelect = onActiveCategoryChange,
             )
             FilterBar(
                 sort = sort,
