@@ -139,11 +139,12 @@ fun RestaurantMapRoute(
 }
 
 @Composable
-private fun MapPreviewCard(
+fun RestaurantMapPreviewCard(
     restaurants: List<RestaurantMemoEntity>,
     onRestaurantClick: (String) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(modifier = modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -172,6 +173,17 @@ private fun MapPreviewCard(
             }
         }
     }
+}
+
+@Composable
+private fun MapPreviewCard(
+    restaurants: List<RestaurantMemoEntity>,
+    onRestaurantClick: (String) -> Unit,
+) {
+    RestaurantMapPreviewCard(
+        restaurants = restaurants,
+        onRestaurantClick = onRestaurantClick,
+    )
 }
 
 @Composable
