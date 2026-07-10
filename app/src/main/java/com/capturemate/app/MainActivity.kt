@@ -73,6 +73,10 @@ class MainActivity : FragmentActivity() {
         ActivityResultContracts.RequestPermission(),
     ) { /* Permission result is only needed before scheduling future notifications. */ }
 
+    private val requestFineLocationPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { /* Location permission result is handled by retrying the toggle if needed. */ }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -137,6 +141,9 @@ class MainActivity : FragmentActivity() {
                         RestaurantDetailRoute(
                             memoId = restaurantMemoId,
                             repository = repository,
+                            onRequestFineLocationPermission = {
+                                requestFineLocationPermissionIfNeeded()
+                            },
                         )
                     }
 
@@ -251,6 +258,19 @@ class MainActivity : FragmentActivity() {
         if (!granted) {
             requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
+    }
+
+    private fun requestFineLocationPermissionIfNeeded(): Boolean {
+        val granted = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (!granted) {
+            requestFineLocationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+
+        return granted
     }
 
     companion object {

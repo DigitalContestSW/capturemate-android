@@ -2,6 +2,7 @@ package com.capturemate.app.feature.restaurant
 
 import android.view.View
 import android.view.ViewGroup
+import android.view.MotionEvent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -158,7 +159,7 @@ private fun MapPreviewCard(
                     onRestaurantClick = onRestaurantClick,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(240.dp),
+                        .height(360.dp),
                 )
                 restaurants.forEach { restaurant ->
                     OutlinedButton(
@@ -185,6 +186,7 @@ private fun NaverRestaurantMapView(
     val mapFragmentTag = remember { "restaurant_naver_map_$mapContainerId" }
     val naverMapState = remember { mutableStateOf<NaverMap?>(null) }
     val markers = remember { mutableStateListOf<Marker>() }
+    val lastCameraFitKey = remember { mutableStateOf<String?>(null) }
     val places = restaurants.mapNotNull { restaurant ->
         val latitude = restaurant.latitude ?: return@mapNotNull null
         val longitude = restaurant.longitude ?: return@mapNotNull null
@@ -193,6 +195,9 @@ private fun NaverRestaurantMapView(
             name = restaurant.name,
             position = LatLng(latitude, longitude),
         )
+    }
+    val cameraFitKey = places.joinToString(separator = "|") { place ->
+        "${place.memoId}:${place.position.latitude},${place.position.longitude}"
     }
 
     if (activity == null) {
@@ -216,6 +221,19 @@ private fun NaverRestaurantMapView(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT,
                 )
+                setOnTouchListener { view, event ->
+                    when (event.actionMasked) {
+                        MotionEvent.ACTION_DOWN,
+                        MotionEvent.ACTION_POINTER_DOWN,
+                        MotionEvent.ACTION_MOVE,
+                        -> view.parent?.requestDisallowInterceptTouchEvent(true)
+
+                        MotionEvent.ACTION_UP,
+                        MotionEvent.ACTION_CANCEL,
+                        -> view.parent?.requestDisallowInterceptTouchEvent(false)
+                    }
+                    false
+                }
                 post {
                     val fragmentManager = activity.supportFragmentManager
                     val existing = fragmentManager.findFragmentByTag(mapFragmentTag) as? MapFragment
@@ -226,21 +244,34 @@ private fun NaverRestaurantMapView(
                     }
                     mapFragment.getMapAsync { naverMap ->
                         naverMapState.value = naverMap
+                        val shouldFitCamera = lastCameraFitKey.value != cameraFitKey
                         naverMap.renderRestaurantMarkers(
                             places = places,
                             markers = markers,
                             onRestaurantClick = onRestaurantClick,
+                            shouldFitCamera = shouldFitCamera,
                         )
+                        if (shouldFitCamera) {
+                            lastCameraFitKey.value = cameraFitKey
+                        }
                     }
                 }
             }
         },
         update = {
-            naverMapState.value?.renderRestaurantMarkers(
-                places = places,
-                markers = markers,
-                onRestaurantClick = onRestaurantClick,
-            )
+            val shouldFitCamera = lastCameraFitKey.value != cameraFitKey
+            val naverMap = naverMapState.value
+            if (naverMap != null) {
+                naverMap.renderRestaurantMarkers(
+                    places = places,
+                    markers = markers,
+                    onRestaurantClick = onRestaurantClick,
+                    shouldFitCamera = shouldFitCamera,
+                )
+                if (shouldFitCamera) {
+                    lastCameraFitKey.value = cameraFitKey
+                }
+            }
         },
     )
 }
@@ -249,12 +280,10 @@ private fun NaverMap.renderRestaurantMarkers(
     places: List<RestaurantMapPlace>,
     markers: MutableList<Marker>,
     onRestaurantClick: (String) -> Unit,
+    shouldFitCamera: Boolean,
 ) {
     markers.forEach { it.map = null }
     markers.clear()
-
-    val first = places.firstOrNull() ?: return
-    moveCamera(CameraUpdate.scrollAndZoomTo(first.position, 15.0))
 
     places.forEach { place ->
         Marker().apply {
@@ -267,6 +296,11 @@ private fun NaverMap.renderRestaurantMarkers(
             map = this@renderRestaurantMarkers
             markers.add(this)
         }
+    }
+
+    if (shouldFitCamera) {
+        val latestPlace = places.firstOrNull() ?: return
+        moveCamera(CameraUpdate.scrollAndZoomTo(latestPlace.position, 15.0))
     }
 }
 

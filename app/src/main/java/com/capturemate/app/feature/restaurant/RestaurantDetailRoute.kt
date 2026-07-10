@@ -12,11 +12,13 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -29,6 +31,7 @@ import java.util.Locale
 fun RestaurantDetailRoute(
     memoId: String,
     repository: CaptureRepository,
+    onRequestFineLocationPermission: () -> Boolean = { true },
     viewModel: RestaurantViewModel = viewModel(factory = RestaurantViewModel.Factory(repository)),
 ) {
     val state by viewModel.detailState.collectAsState()
@@ -56,6 +59,14 @@ fun RestaurantDetailRoute(
             else -> {
                 RestaurantDetailContent(
                     restaurantMemo = state.restaurantMemo,
+                    onLocationReminderChange = { restaurantMemoId, enabled, radiusMeters ->
+                        if (enabled && !onRequestFineLocationPermission()) return@RestaurantDetailContent
+                        viewModel.setLocationReminderEnabled(
+                            restaurantMemoId = restaurantMemoId,
+                            enabled = enabled,
+                            radiusMeters = radiusMeters,
+                        )
+                    },
                     modifier = Modifier.padding(innerPadding),
                 )
             }
@@ -66,6 +77,7 @@ fun RestaurantDetailRoute(
 @Composable
 fun RestaurantDetailContent(
     restaurantMemo: RestaurantMemo?,
+    onLocationReminderChange: (String, Boolean, Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val data = restaurantMemo ?: return
@@ -89,6 +101,46 @@ fun RestaurantDetailContent(
                             text = "장소 정보 확인 필요",
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                             style = MaterialTheme.typography.labelMedium,
+                        )
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(text = "근처 알림", style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                text = "${restaurant.locationReminderRadiusMeters.toInt()}m 안에 들어오면 알려줘요",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        Switch(
+                            checked = restaurant.locationReminderEnabled,
+                            enabled = restaurant.latitude != null && restaurant.longitude != null,
+                            onCheckedChange = { enabled ->
+                                onLocationReminderChange(
+                                    restaurant.id,
+                                    enabled,
+                                    restaurant.locationReminderRadiusMeters,
+                                )
+                            },
+                        )
+                    }
+                    if (restaurant.latitude == null || restaurant.longitude == null) {
+                        Text(
+                            text = "좌표가 있는 맛집만 위치 알림을 설정할 수 있어요.",
+                            style = MaterialTheme.typography.bodySmall,
                         )
                     }
                 }
