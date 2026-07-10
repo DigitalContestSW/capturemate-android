@@ -180,19 +180,34 @@ abstract class CaptureMateDatabase : RoomDatabase() {
 
         val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE `study_items` ADD COLUMN `screenshotUris` TEXT NOT NULL DEFAULT '[]'")
-                db.execSQL("ALTER TABLE `life_info_items` ADD COLUMN `screenshotUris` TEXT NOT NULL DEFAULT '[]'")
+                if (!db.hasColumn("study_items", "screenshotUris")) {
+                    db.execSQL("ALTER TABLE `study_items` ADD COLUMN `screenshotUris` TEXT NOT NULL DEFAULT '[]'")
+                }
+                if (!db.hasColumn("life_info_items", "screenshotUris")) {
+                    db.execSQL("ALTER TABLE `life_info_items` ADD COLUMN `screenshotUris` TEXT NOT NULL DEFAULT '[]'")
+                }
             }
         }
 
         val MIGRATION_5_6 = object : Migration(5, 6) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE `study_items` ADD COLUMN `reminderConfirmed` INTEGER NOT NULL DEFAULT 0")
+                if (!db.hasColumn("study_items", "reminderConfirmed")) {
+                    db.execSQL("ALTER TABLE `study_items` ADD COLUMN `reminderConfirmed` INTEGER NOT NULL DEFAULT 0")
+                }
             }
         }
 
         val MIGRATION_6_7 = object : Migration(6, 7) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                if (!db.hasColumn("study_items", "screenshotUris")) {
+                    db.execSQL("ALTER TABLE `study_items` ADD COLUMN `screenshotUris` TEXT NOT NULL DEFAULT '[]'")
+                }
+                if (!db.hasColumn("study_items", "reminderConfirmed")) {
+                    db.execSQL("ALTER TABLE `study_items` ADD COLUMN `reminderConfirmed` INTEGER NOT NULL DEFAULT 0")
+                }
+                if (!db.hasColumn("life_info_items", "screenshotUris")) {
+                    db.execSQL("ALTER TABLE `life_info_items` ADD COLUMN `screenshotUris` TEXT NOT NULL DEFAULT '[]'")
+                }
                 if (!db.hasColumn("restaurant_memos", "locationReminderEnabled")) {
                     db.execSQL(
                         "ALTER TABLE `restaurant_memos` ADD COLUMN `locationReminderEnabled` INTEGER NOT NULL DEFAULT 0",
