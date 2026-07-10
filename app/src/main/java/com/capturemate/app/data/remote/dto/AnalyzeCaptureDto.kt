@@ -4,10 +4,14 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 
 @Serializable
-data class AnalyzeCaptureRequest(
-    val maskedText: String,
-    val locale: String = "ko-KR",
-    val clientCapturedAt: Long? = null,
+data class AnalyzeBatchResponse(
+    val groups: List<MemoGroup> = emptyList(),
+)
+
+@Serializable
+data class MemoGroup(
+    val memberClientIds: List<String> = emptyList(),
+    val analysis: AnalyzeCaptureResponse,
 )
 
 @Serializable
@@ -16,6 +20,7 @@ data class AnalyzeCaptureResponse(
     val title: String,
     val summary: String,
     val category: String,
+    val isUseful: Boolean = true,
     val recommendedAction: String? = null,
     val reminderAt: Long? = null,
     val categoryDetail: JsonElement? = null,

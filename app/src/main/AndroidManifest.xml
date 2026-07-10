@@ -42,6 +42,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".feature.debugocr.DebugOcrActivity"
+            android:exported="false"
+            android:label="@string/ocr_debug_name"
+            android:theme="@style/Theme.CaptureMate" />
     </application>
 
 </manifest>

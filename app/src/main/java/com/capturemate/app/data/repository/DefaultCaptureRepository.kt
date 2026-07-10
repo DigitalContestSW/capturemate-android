@@ -25,7 +25,6 @@ import com.capturemate.app.data.local.entity.RestaurantRecommendedActionEntity
 import com.capturemate.app.data.local.entity.RestaurantTagEntity
 import com.capturemate.app.data.local.entity.StudyItemEntity
 import com.capturemate.app.data.remote.CaptureMateApi
-import com.capturemate.app.data.remote.dto.AnalyzeCaptureRequest
 import com.capturemate.app.data.remote.dto.LifeInfoDetailDto
 import com.capturemate.app.data.remote.dto.ScheduleDetailDto
 import com.capturemate.app.domain.repository.AddToGoogleCalendarResult
@@ -133,98 +132,9 @@ class DefaultCaptureRepository(
     override suspend fun createDebugRestaurantPlace() = Unit
 
     override suspend fun analyzeAndCreateMemo(captureId: String, maskedText: String): MemoEntity {
-        val response = captureMateApi.analyzeCapture(AnalyzeCaptureRequest(maskedText = maskedText))
-        val now = System.currentTimeMillis()
-        val memo = MemoEntity(
-            id = UUID.randomUUID().toString(),
-            captureId = captureId,
-            serverMemoId = response.serverMemoId,
-            title = response.title,
-            summary = response.summary,
-            category = response.category,
-            recommendedAction = response.recommendedAction,
-            reminderAt = response.reminderAt,
-            status = MemoStatus.Pending.name,
-            createdAt = now,
-            updatedAt = now,
+        throw UnsupportedOperationException(
+            "Text-only analysis is no longer supported. Use the backend image batch OCR API.",
         )
-        captureDao.upsertMemo(memo)
-
-        val categoryDetail = response.categoryDetail
-        if (categoryDetail != null) {
-            when (response.category) {
-                CaptureCategory.Study.name -> {
-                    val studyDetail = json.decodeFromJsonElement<StudyDetailDto>(categoryDetail)
-                    studyItemDao.upsert(
-                        StudyItemEntity(
-                            id = UUID.randomUUID().toString(),
-                            memoId = memo.id,
-                            keyPoints = studyDetail.keyPoints,
-                            selectedReviewDays = studyDetail.recommendedReviewDays,
-                            screenshotUris = studyDetail.screenshotUris,
-                            createdAt = now,
-                        ),
-                    )
-                }
-
-                CaptureCategory.LifeInfo.name -> {
-                    val lifeInfoDetail = json.decodeFromJsonElement<LifeInfoDetailDto>(categoryDetail)
-                    lifeInfoItemDao.upsert(
-                        LifeInfoItemEntity(
-                            id = UUID.randomUUID().toString(),
-                            memoId = memo.id,
-                            benefit = lifeInfoDetail.benefit,
-                            target = lifeInfoDetail.target,
-                            applicationMethod = lifeInfoDetail.applicationMethod,
-                            deadline = lifeInfoDetail.deadline,
-                            deadlineReminderEnabled = false,
-                            customReminderAt = null,
-                            screenshotUris = lifeInfoDetail.screenshotUris,
-                            createdAt = now,
-                        ),
-                    )
-                }
-
-                CaptureCategory.Schedule.name -> {
-                    val scheduleDetail = json.decodeFromJsonElement<ScheduleDetailDto>(categoryDetail)
-                    scheduleItemDao.upsert(
-                        ScheduleItemEntity(
-                            id = UUID.randomUUID().toString(),
-                            memoId = memo.id,
-                            eventTitle = scheduleDetail.eventTitle ?: memo.title,
-                            deadlineAt = scheduleDetail.deadlineAt ?: memo.reminderAt,
-                            eventDateText = scheduleDetail.eventDateText,
-                            location = scheduleDetail.location,
-                            screenshotUris = scheduleDetail.screenshotUris,
-                            customReminderAt = null,
-                            googleCalendarEventId = null,
-                            googleCalendarHtmlLink = null,
-                            createdAt = now,
-                        ),
-                    )
-                }
-            }
-        }
-
-        if (response.category.equals(CaptureCategory.Restaurant.name, ignoreCase = true)) {
-            val restaurantDetail = response.categoryDetail ?: response.details
-            val detail = if (restaurantDetail != null) {
-                json.decodeFromJsonElement<RestaurantAnalysisDto>(restaurantDetail)
-            } else {
-                RestaurantAnalysisDto(
-                    restaurant = RestaurantPlaceDto(name = memo.title),
-                    confidence = 0.0,
-                    needsUserReview = true,
-                )
-            }
-            upsertRestaurantAnalysis(
-                memo = memo,
-                detail = detail,
-                now = now,
-            )
-        }
-
-        return memo
     }
 
     override suspend fun confirmMemo(memoId: String) {
@@ -425,6 +335,14 @@ class DefaultCaptureRepository(
             body = memo.title,
             triggerAtMillis = triggerAtMillis,
         )
+    }
+
+    override suspend fun upsertCapture(capture: CaptureEntity) {
+        captureDao.upsertCapture(capture)
+    }
+
+    override suspend fun upsertMemo(memo: MemoEntity) {
+        captureDao.upsertMemo(memo)
     }
 
     private suspend fun upsertRestaurantAnalysis(

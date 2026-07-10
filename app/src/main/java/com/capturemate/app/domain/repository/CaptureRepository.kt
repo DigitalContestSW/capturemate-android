@@ -48,6 +48,8 @@ interface CaptureRepository {
         memoId: String,
         data: Intent?,
     ): AddToGoogleCalendarResult
+    suspend fun upsertCapture(capture: CaptureEntity)
+    suspend fun upsertMemo(memo: MemoEntity)
 }
 
 sealed interface AddToGoogleCalendarResult {

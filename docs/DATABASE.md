@@ -8,9 +8,9 @@
 
 - `id`: 로컬 캡처 ID
 - `localImageUri`: 갤러리 URI 또는 앱 내부 복사본 URI
-- `rawTextLocalOnly`: OCR 원문, 서버 전송 금지
-- `maskedText`: 마스킹 후 서버 전송 가능 텍스트
-- `category`: 서버/로컬 분류 결과
+- `rawTextLocalOnly`: 앱 로컬 OCR 미사용 시 빈 문자열
+- `maskedText`: 서버가 OCR/마스킹 후 반환한 텍스트
+- `category`: 서버 분류 결과
 - `capturedAt`: 스크린샷 촬영 추정 시각
 - `createdAt`: 앱 저장 시각
 
@@ -28,12 +28,12 @@
 
 ## Server DB
 
-서버 DB는 원본 이미지 없이 사용자의 실행 흐름과 분석 결과만 저장한다.
+서버 DB는 원본 이미지의 영구 저장을 피하고, OCR/마스킹 이후의 실행 흐름과 분석 결과만 저장하는 것을 기본 원칙으로 한다.
 
 ### 필수 후보 테이블
 
 - `users`: Google 로그인 사용자
-- `captures`: 로컬 캡처와 매핑되는 서버 분석 단위, `masked_text`만 저장
+- `captures`: 로컬 캡처와 매핑되는 서버 분석 단위, `masked_text`와 분석 메타데이터 저장
 - `memos`: 요약 카드와 카테고리
 - `actions`: 일정 등록, 할 일, 지도 열기, 알림 등 추천/실행 액션
 - `reminders`: 서버 기반 리마인드가 필요할 경우
@@ -46,9 +46,8 @@
 - `places`: 장소명, 주소, 위도/경도, 지도 provider ID
 - `job_posts`: 회사명, 직무, 마감일, 지원 URL
 
-## 서버로 보내면 안 되는 데이터
+## 서버 요청 필드로 보내면 안 되는 데이터
 
-- 원본 스크린샷 이미지
 - 로컬 파일 경로
 - 마스킹 전 OCR 원문
 - 전화번호, 이메일, 계좌번호 등 원문 민감정보
