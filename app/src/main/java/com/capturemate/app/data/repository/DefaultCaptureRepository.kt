@@ -170,6 +170,7 @@ class DefaultCaptureRepository(
                 createdAt = now,
             ),
         )
+        setScheduleCustomReminderAt(scheduleMemo.id, tomorrow)
 
         val studyMemo = debugMemo(
             id = "debug-sample-study-memo",
@@ -197,11 +198,12 @@ class DefaultCaptureRepository(
                     "Paging과 segmentation의 장단점을 정리하기",
                 ),
                 selectedReviewDays = 7,
-                reminderConfirmed = false,
+                reminderConfirmed = true,
                 screenshotUris = emptyList(),
                 createdAt = now,
             ),
         )
+        scheduleStudyReminder(studyMemo, 7)
 
         val lifeInfoMemo = debugMemo(
             id = "debug-sample-lifeinfo-memo",
@@ -227,12 +229,14 @@ class DefaultCaptureRepository(
                 target = "만 19-34세 청년 중 기준 소득 충족자",
                 applicationMethod = "온라인 포털 접수",
                 deadline = nextWeek,
-                deadlineReminderEnabled = false,
+                deadlineReminderEnabled = true,
                 customReminderAt = tomorrow,
                 screenshotUris = emptyList(),
                 createdAt = now,
             ),
         )
+        setDeadlineReminderEnabled(lifeInfoMemo.id, true)
+        setCustomReminderAt(lifeInfoMemo.id, tomorrow)
 
         val restaurantMemo = debugMemo(
             id = "debug-sample-restaurant-memo",
@@ -338,6 +342,10 @@ class DefaultCaptureRepository(
                 groupId = "debug-sample-banwoldang-restaurant-group",
                 restaurantMemoId = "debug-sample-restaurant-detail",
             ),
+        )
+        setRestaurantLocationReminderEnabled(
+            restaurantMemoId = "debug-sample-restaurant-detail",
+            enabled = true,
         )
     }
 
@@ -574,10 +582,12 @@ class DefaultCaptureRepository(
                             memoId = memo.id,
                             keyPoints = detail.keyPoints,
                             selectedReviewDays = detail.recommendedReviewDays,
+                            reminderConfirmed = true,
                             screenshotUris = detail.screenshotUris.ifEmpty { screenshotUris },
                             createdAt = createdAt,
                         ),
                     )
+                    scheduleStudyReminder(memo, detail.recommendedReviewDays)
                 }
 
                 memo.category.equals(CaptureCategory.LifeInfo.name, ignoreCase = true) -> {
@@ -592,12 +602,14 @@ class DefaultCaptureRepository(
                             target = detail.target,
                             applicationMethod = detail.applicationMethod,
                             deadline = detail.deadline,
-                            deadlineReminderEnabled = false,
-                            customReminderAt = null,
+                            deadlineReminderEnabled = true,
+                            customReminderAt = memo.reminderAt,
                             screenshotUris = detail.screenshotUris.ifEmpty { screenshotUris },
                             createdAt = createdAt,
                         ),
                     )
+                    setDeadlineReminderEnabled(memo.id, true)
+                    memo.reminderAt?.let { setCustomReminderAt(memo.id, it) }
                 }
 
                 memo.category.equals(CaptureCategory.Schedule.name, ignoreCase = true) -> {
@@ -613,22 +625,29 @@ class DefaultCaptureRepository(
                             eventDateText = detail.eventDateText,
                             location = detail.location,
                             screenshotUris = detail.screenshotUris.ifEmpty { screenshotUris },
-                            customReminderAt = null,
+                            customReminderAt = memo.reminderAt ?: detail.deadlineAt,
                             googleCalendarEventId = null,
                             googleCalendarHtmlLink = null,
                             createdAt = createdAt,
                         ),
                     )
+                    (memo.reminderAt ?: detail.deadlineAt)?.let { reminderAt ->
+                        setScheduleCustomReminderAt(memo.id, reminderAt)
+                    }
                 }
 
                 memo.category.equals(CaptureCategory.Restaurant.name, ignoreCase = true) -> {
                     val detail = json.decodeFromJsonElement<RestaurantAnalysisDto>(
                         detailElement.unwrapDetail("restaurantAnalysis"),
                     )
-                    upsertRestaurantAnalysis(
+                    val restaurantMemoId = upsertRestaurantAnalysis(
                         memo = memo,
                         detail = detail,
                         now = createdAt,
+                    )
+                    setRestaurantLocationReminderEnabled(
+                        restaurantMemoId = restaurantMemoId,
+                        enabled = true,
                     )
                 }
             }
@@ -681,7 +700,7 @@ class DefaultCaptureRepository(
         memo: MemoEntity,
         detail: RestaurantAnalysisDto,
         now: Long,
-    ) {
+    ): String {
         val restaurant = detail.restaurant
         val restaurantMemoId = UUID.randomUUID().toString()
         val restaurantName = restaurant.name?.takeIf { it.isNotBlank() } ?: memo.title
@@ -778,6 +797,7 @@ class DefaultCaptureRepository(
             group = groupEntity,
             groupMember = groupMember,
         )
+        return restaurantMemoId
     }
 
     private fun extractNeighborhood(value: String?): String? {
