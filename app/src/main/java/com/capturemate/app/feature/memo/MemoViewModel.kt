@@ -10,6 +10,7 @@ import com.capturemate.app.domain.model.MemoStatus
 import com.capturemate.app.domain.repository.AddToGoogleCalendarResult
 import com.capturemate.app.domain.repository.CaptureRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -165,9 +166,12 @@ class MemoViewModel(
         }
     }
 
+    private var detailJob: Job? = null
+
     @OptIn(ExperimentalCoroutinesApi::class)
     fun loadMemoDetail(memoId: String) {
-        viewModelScope.launch {
+        detailJob?.cancel()
+        detailJob = viewModelScope.launch {
             val memoFlow = repository.observeMemoById(memoId)
             combine(
                 memoFlow,

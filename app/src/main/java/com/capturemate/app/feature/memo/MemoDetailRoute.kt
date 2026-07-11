@@ -1,6 +1,7 @@
 package com.capturemate.app.feature.memo
 
 import android.app.Activity
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -59,6 +60,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.capturemate.app.BuildConfig
+import com.capturemate.app.core.notification.NotificationScheduler
 import com.capturemate.app.data.local.entity.LifeInfoItemEntity
 import com.capturemate.app.data.local.entity.ScheduleItemEntity
 import com.capturemate.app.data.local.entity.StudyItemEntity
@@ -162,6 +165,10 @@ fun MemoDetailRoute(
                             summary = memo.summary,
                             recommendedAction = memo.recommendedAction,
                         )
+
+                        if (BuildConfig.DEBUG) {
+                            DebugNotificationTestCard(memoId = memo.id, memoTitle = memo.title)
+                        }
 
                         state.studyItem?.let { studyItem ->
                             StudySection(
@@ -366,6 +373,63 @@ private fun AiSummaryCard(category: String, summary: String, recommendedAction: 
                             fontWeight = FontWeight.SemiBold,
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DebugNotificationTestCard(memoId: String, memoTitle: String) {
+    val context = LocalContext.current
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = CaptureSurface,
+        border = BorderStroke(1.dp, CaptureBorder),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(text = "디버그: 알림 테스트", color = CaptureInk, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Surface(
+                onClick = {
+                    NotificationScheduler.ensureChannel(context)
+                    NotificationScheduler.scheduleReminder(
+                        context = context,
+                        workName = "debug-notification-test-$memoId",
+                        memoId = memoId,
+                        title = "테스트 알림",
+                        body = memoTitle,
+                        triggerAtMillis = System.currentTimeMillis() + 30_000,
+                    )
+                    Toast.makeText(context, "30초 후 알림이 와요", Toast.LENGTH_SHORT).show()
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = CaptureMuted,
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 10.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Notifications,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = CaptureInk,
+                    )
+                    Text(
+                        text = "30초 뒤 테스트 알림 보내기",
+                        modifier = Modifier.padding(start = 6.dp),
+                        color = CaptureInk,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
                 }
             }
         }
