@@ -6,6 +6,7 @@ import com.capturemate.app.BuildConfig
 import com.capturemate.app.core.auth.GoogleSignInClient
 import com.capturemate.app.core.calendar.GoogleCalendarClient
 import com.capturemate.app.core.location.RestaurantGeofenceManager
+import com.capturemate.app.core.ocr.BackendOcrProcessor
 import com.capturemate.app.core.privacy.SensitiveTextMasker
 import com.capturemate.app.data.local.AuthSessionStore
 import com.capturemate.app.data.local.CaptureMateDatabase
@@ -36,12 +37,21 @@ class AppContainer(context: Context) {
             appContext,
             CaptureMateDatabase::class.java,
             "capturemate.db",
-        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+        )
 
         if (BuildConfig.DEBUG) {
             builder
                 .fallbackToDestructiveMigration(dropAllTables = true)
                 .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
+        } else {
+            builder.addMigrations(
+                MIGRATION_1_2,
+                MIGRATION_2_3,
+                MIGRATION_3_4,
+                MIGRATION_4_5,
+                MIGRATION_5_6,
+                MIGRATION_6_7,
+            )
         }
 
         builder.build()
@@ -84,9 +94,9 @@ class AppContainer(context: Context) {
         OkHttpClient.Builder()
             .addInterceptor(logging)
             .connectTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(60, TimeUnit.SECONDS)
-            .readTimeout(180, TimeUnit.SECONDS)
-            .callTimeout(180, TimeUnit.SECONDS)
+            .writeTimeout(0, TimeUnit.SECONDS)
+            .readTimeout(0, TimeUnit.SECONDS)
+            .callTimeout(0, TimeUnit.SECONDS)
             .build()
     }
 
@@ -122,6 +132,14 @@ class AppContainer(context: Context) {
             captureMateApi = captureMateApi,
             json = json,
             appContext = appContext,
+        )
+    }
+
+    val backendOcrProcessor: BackendOcrProcessor by lazy {
+        BackendOcrProcessor(
+            context = appContext,
+            captureMateApi = captureMateApi,
+            captureRepository = captureRepository,
         )
     }
 }

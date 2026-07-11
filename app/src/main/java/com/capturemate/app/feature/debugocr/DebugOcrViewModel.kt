@@ -16,6 +16,7 @@ import com.capturemate.app.data.local.entity.MemoEntity
 import com.capturemate.app.data.remote.dto.AnalyzeBatchResponse
 import com.capturemate.app.data.remote.dto.AnalyzeCaptureResponse
 import com.capturemate.app.domain.model.MemoStatus
+import com.capturemate.app.domain.model.normalizeCaptureCategory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -326,7 +327,10 @@ class DebugOcrViewModel(
         val uploadScreenshots = if (force) {
             screenshots
         } else {
-            screenshots.filterNot { processedUris.contains(it.uri.toString()) }
+            screenshots.filterNot {
+                val uriString = it.uri.toString()
+                processedUris.contains(uriString) || appContainer.backendOcrProcessor.isProcessed(uriString)
+            }
         }
         val skippedCount = screenshots.size - uploadScreenshots.size
         if (uploadScreenshots.isEmpty()) {
@@ -382,7 +386,9 @@ class DebugOcrViewModel(
         }
 
         result.onSuccess { uploadResult ->
-            processedUris += pendingUploads.map { it.screenshot.uri.toString() }
+            val processedUploadUris = pendingUploads.map { it.screenshot.uri.toString() }
+            processedUris += processedUploadUris
+            appContainer.backendOcrProcessor.markProcessed(processedUploadUris)
             val payload = response ?: error("백엔드 응답이 비어 있습니다.")
             withContext(Dispatchers.IO) {
                 saveBatchResult(
@@ -420,6 +426,8 @@ class DebugOcrViewModel(
         val uploadsByClientId = uploads.associateBy { it.clientCaptureId }
         val usefulGroups = response.groups.filter { it.analysis.isUseful }
         usefulGroups.forEach { group ->
+            val category = normalizeCaptureCategory(group.analysis.category)
+            val memoId = group.analysis.serverMemoId ?: UUID.randomUUID().toString()
             group.memberClientIds.forEach { clientId ->
                 val upload = uploadsByClientId[clientId] ?: return@forEach
                 appContainer.captureRepository.upsertCapture(
@@ -428,19 +436,19 @@ class DebugOcrViewModel(
                         localImageUri = upload.screenshot.uri.toString(),
                         rawTextLocalOnly = "",
                         maskedText = "",
-                        category = group.analysis.category,
+                        category = category,
                         capturedAt = upload.capturedAt,
                         createdAt = createdAt,
                     ),
                 )
             }
             val memo = MemoEntity(
-                id = group.analysis.serverMemoId ?: UUID.randomUUID().toString(),
+                id = memoId,
                 captureId = group.memberClientIds.firstOrNull(),
                 serverMemoId = group.analysis.serverMemoId,
                 title = group.analysis.title,
                 summary = group.analysis.summary,
-                category = group.analysis.category,
+                category = category,
                 recommendedAction = group.analysis.recommendedAction,
                 reminderAt = group.analysis.reminderAt,
                 status = MemoStatus.Pending.name,
@@ -610,7 +618,7 @@ private fun BackendAnalyzePayload?.toUploadResult(
         } else {
             analysis.summary
         },
-        category = if (isBatch) "batch" else analysis.category,
+        category = if (isBatch) "batch" else normalizeCaptureCategory(analysis.category),
         recommendedAction = if (isBatch) null else analysis.recommendedAction,
         reminderAt = if (isBatch) null else analysis.reminderAt,
         rawBackendResponse = payload.rawJson,

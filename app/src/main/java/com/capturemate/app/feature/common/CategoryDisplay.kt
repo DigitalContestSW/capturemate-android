@@ -8,9 +8,10 @@ import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Work
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.capturemate.app.domain.model.normalizeCaptureCategory
 
 /** [com.capturemate.app.domain.model.CaptureCategory] 이름(memo.category)에 대응하는 표시용 아이콘/라벨. */
-fun categoryIcon(category: String): ImageVector = when (category) {
+fun categoryIcon(category: String): ImageVector = when (normalizeCaptureCategory(category)) {
     "Schedule" -> Icons.Filled.CalendarToday
     "Study" -> Icons.Filled.School
     "LifeInfo" -> Icons.Filled.Info
@@ -19,7 +20,7 @@ fun categoryIcon(category: String): ImageVector = when (category) {
     else -> Icons.Filled.Circle
 }
 
-fun categoryLabel(category: String): String = when (category) {
+fun categoryLabel(category: String): String = when (normalizeCaptureCategory(category)) {
     "Schedule" -> "일정/공지"
     "Study" -> "학습"
     "LifeInfo" -> "생활정보"

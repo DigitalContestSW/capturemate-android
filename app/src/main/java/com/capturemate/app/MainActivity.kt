@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.capturemate.app.feature.debugocr.requiredImagePermission
 import com.capturemate.app.feature.home.HomeRoute
 import com.capturemate.app.feature.home.HomeViewModel
 import com.capturemate.app.feature.home.HomeViewModelFactory
@@ -94,9 +95,14 @@ class MainActivity : FragmentActivity() {
         }
     }
 
+    private val requestImagePermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { /* Permission result is checked by the OCR worker before reading screenshots. */ }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        requestImagePermissionIfNeeded()
         pendingMemoIdFromNotification = intent.getStringExtra(EXTRA_MEMO_ID)
 
         val appContainer = (application as CaptureMateApplication).appContainer
@@ -370,11 +376,17 @@ class MainActivity : FragmentActivity() {
         startActivity(intent)
     }
 
-    private fun requiredImagePermission(): String {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            Manifest.permission.READ_MEDIA_IMAGES
-        } else {
-            Manifest.permission.READ_EXTERNAL_STORAGE
+    private fun requestImagePermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+
+        val permission = requiredImagePermission()
+        val granted = ContextCompat.checkSelfPermission(
+            this,
+            permission,
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (!granted) {
+            requestImagePermission.launch(permission)
         }
     }
 
