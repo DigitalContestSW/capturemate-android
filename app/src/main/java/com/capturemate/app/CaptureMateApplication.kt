@@ -2,6 +2,7 @@ package com.capturemate.app
 
 import android.app.Application
 import com.capturemate.app.core.di.AppContainer
+import com.capturemate.app.core.ocr.BackendOcrScheduler
 import com.naver.maps.map.NaverMapSdk
 
 class CaptureMateApplication : Application() {
@@ -15,5 +16,6 @@ class CaptureMateApplication : Application() {
                 NaverMapSdk.NcpKeyClient(BuildConfig.NAVER_MAP_NCP_KEY_ID)
         }
         appContainer = AppContainer(this)
+        BackendOcrScheduler.schedule(this)
     }
 }

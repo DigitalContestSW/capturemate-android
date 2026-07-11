@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.capturemate.app.data.local.entity.MemoEntity
+import com.capturemate.app.domain.model.normalizeCaptureCategory
 import com.capturemate.app.domain.repository.CaptureRepository
 import com.capturemate.app.feature.common.categoryIcon
 import com.capturemate.app.feature.common.categoryLabel
@@ -118,7 +119,7 @@ fun MemoListRoute(
         val byCategory = if (activeCategory == CATEGORY_ALL) {
             state.memos
         } else {
-            state.memos.filter { it.category == activeCategory }
+            state.memos.filter { normalizeCaptureCategory(it.category) == activeCategory }
         }
         val byStatus = when (status) {
             StatusFilter.All -> byCategory
