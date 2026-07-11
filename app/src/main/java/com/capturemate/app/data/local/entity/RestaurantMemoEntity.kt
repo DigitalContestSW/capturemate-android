@@ -1,5 +1,6 @@
 package com.capturemate.app.data.local.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -21,6 +22,11 @@ data class RestaurantMemoEntity(
     val estimatedPricePerPersonMax: Int?,
     val confidence: Double,
     val needsUserReview: Boolean,
+    @ColumnInfo(defaultValue = "0")
+    val locationReminderEnabled: Boolean = false,
+    @ColumnInfo(defaultValue = "200")
+    val locationReminderRadiusMeters: Float = 200f,
+    val locationReminderLastTriggeredAt: Long? = null,
     val createdAt: Long,
     val updatedAt: Long,
 )

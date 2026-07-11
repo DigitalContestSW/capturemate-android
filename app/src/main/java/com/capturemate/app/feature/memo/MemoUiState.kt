@@ -5,6 +5,7 @@ import com.capturemate.app.data.local.entity.LifeInfoItemEntity
 import com.capturemate.app.data.local.entity.MemoEntity
 import com.capturemate.app.data.local.entity.ScheduleItemEntity
 import com.capturemate.app.data.local.entity.StudyItemEntity
+import com.capturemate.app.domain.model.RestaurantMemo
 
 data class MemoListItemInfo(
     val thumbnailUri: String? = null,
@@ -40,6 +41,7 @@ data class MemoDetailUiState(
     val studyItem: StudyItemEntity? = null,
     val lifeInfoItem: LifeInfoItemEntity? = null,
     val scheduleItem: ScheduleItemEntity? = null,
+    val restaurantMemo: RestaurantMemo? = null,
     val isLoading: Boolean = false,
     val isAddingToGoogleCalendar: Boolean = false,
     val googleCalendarMessage: String? = null,

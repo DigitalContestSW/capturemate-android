@@ -2,6 +2,7 @@ package com.capturemate.app.data.repository
 
 import android.content.Context
 import android.content.Intent
+import com.capturemate.app.core.location.RestaurantGeofenceManager
 import com.capturemate.app.core.notification.NotificationScheduler
 import com.capturemate.app.core.calendar.CalendarAuthorizationResult
 import com.capturemate.app.core.calendar.GoogleCalendarClient
@@ -24,7 +25,7 @@ import com.capturemate.app.data.local.entity.RestaurantRecommendedActionEntity
 import com.capturemate.app.data.local.entity.RestaurantTagEntity
 import com.capturemate.app.data.local.entity.StudyItemEntity
 import com.capturemate.app.data.remote.CaptureMateApi
-import com.capturemate.app.data.remote.dto.AnalyzeCaptureRequest
+import com.capturemate.app.data.remote.dto.AnalyzeCaptureResponse
 import com.capturemate.app.data.remote.dto.LifeInfoDetailDto
 import com.capturemate.app.data.remote.dto.ScheduleDetailDto
 import com.capturemate.app.domain.repository.AddToGoogleCalendarResult
@@ -49,6 +50,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 
 class DefaultCaptureRepository(
@@ -58,6 +61,7 @@ class DefaultCaptureRepository(
     private val scheduleItemDao: ScheduleItemDao,
     private val googleCalendarClient: GoogleCalendarClient,
     private val restaurantMemoDao: RestaurantMemoDao,
+    private val restaurantGeofenceManager: RestaurantGeofenceManager,
     private val captureMateApi: CaptureMateApi,
     private val json: Json,
     private val appContext: Context,
@@ -128,185 +132,227 @@ class DefaultCaptureRepository(
             group?.let { RestaurantGroup(group = it, restaurants = restaurants) }
         }
 
-    override suspend fun createDebugRestaurantPlace() {
-        val now = System.currentTimeMillis()
-        val memo = MemoEntity(
-            id = DEBUG_RESTAURANT_MEMO_ID,
-            captureId = "debug-restaurant-capture-baeksogjeong",
-            serverMemoId = null,
-            title = "백소정 안암본점",
-            summary = "안암역 근처 돈카츠, 마제소바, 냉소바 메뉴가 있는 실제 매장입니다.",
-            category = CaptureCategory.Restaurant.name,
-            recommendedAction = "네이버맵 핀 표시 테스트",
-            reminderAt = null,
-            status = MemoStatus.Saved.name,
-            createdAt = now,
-            updatedAt = now,
-        )
-        captureDao.upsertMemo(memo)
+    override suspend fun createDebugRestaurantPlace() = Unit
 
+    override suspend fun createDebugSampleMemos() {
+        val now = System.currentTimeMillis()
+        val tomorrow = now + TimeUnit.DAYS.toMillis(1)
+        val nextWeek = now + TimeUnit.DAYS.toMillis(7)
+
+        val scheduleMemo = debugMemo(
+            id = "debug-sample-schedule-memo",
+            captureId = "debug-sample-schedule-capture",
+            title = "팀 프로젝트 발표 일정",
+            summary = "다음 주 금요일 오후 2시에 팀 프로젝트 최종 발표가 예정되어 있습니다.",
+            category = CaptureCategory.Schedule.name,
+            recommendedAction = "캘린더에 추가하고 발표 자료를 전날까지 점검하세요.",
+            reminderAt = tomorrow,
+            now = now,
+        )
+        upsertDebugCapture(
+            id = scheduleMemo.captureId.orEmpty(),
+            category = scheduleMemo.category,
+            now = now,
+        )
+        captureDao.upsertMemo(scheduleMemo)
+        scheduleItemDao.upsert(
+            ScheduleItemEntity(
+                id = "debug-sample-schedule-detail",
+                memoId = scheduleMemo.id,
+                eventTitle = "팀 프로젝트 최종 발표",
+                deadlineAt = nextWeek,
+                eventDateText = "다음 주 금요일 오후 2시",
+                location = "공학관 302호",
+                screenshotUris = emptyList(),
+                customReminderAt = tomorrow,
+                googleCalendarEventId = null,
+                googleCalendarHtmlLink = null,
+                createdAt = now,
+            ),
+        )
+        setScheduleCustomReminderAt(scheduleMemo.id, tomorrow)
+
+        val studyMemo = debugMemo(
+            id = "debug-sample-study-memo",
+            captureId = "debug-sample-study-capture",
+            title = "운영체제 시험 핵심 정리",
+            summary = "프로세스 스케줄링, 데드락, 가상 메모리 개념을 중심으로 복습이 필요합니다.",
+            category = CaptureCategory.Study.name,
+            recommendedAction = "7일 뒤 복습 알림을 설정하고 핵심 개념을 다시 확인하세요.",
+            reminderAt = nextWeek,
+            now = now,
+        )
+        upsertDebugCapture(
+            id = studyMemo.captureId.orEmpty(),
+            category = studyMemo.category,
+            now = now,
+        )
+        captureDao.upsertMemo(studyMemo)
+        studyItemDao.upsert(
+            StudyItemEntity(
+                id = "debug-sample-study-detail",
+                memoId = studyMemo.id,
+                keyPoints = listOf(
+                    "Round Robin과 Priority Scheduling의 차이를 비교하기",
+                    "Deadlock 발생 조건 4가지를 예시와 함께 암기하기",
+                    "Paging과 segmentation의 장단점을 정리하기",
+                ),
+                selectedReviewDays = 7,
+                reminderConfirmed = true,
+                screenshotUris = emptyList(),
+                createdAt = now,
+            ),
+        )
+        scheduleStudyReminder(studyMemo, 7)
+
+        val lifeInfoMemo = debugMemo(
+            id = "debug-sample-lifeinfo-memo",
+            captureId = "debug-sample-lifeinfo-capture",
+            title = "청년 교통비 지원 신청",
+            summary = "대상자는 온라인 포털에서 교통비 지원을 신청할 수 있으며 마감일 전 접수가 필요합니다.",
+            category = CaptureCategory.LifeInfo.name,
+            recommendedAction = "신청 자격을 확인하고 마감 3일 전 알림을 켜두세요.",
+            reminderAt = nextWeek,
+            now = now,
+        )
+        upsertDebugCapture(
+            id = lifeInfoMemo.captureId.orEmpty(),
+            category = lifeInfoMemo.category,
+            now = now,
+        )
+        captureDao.upsertMemo(lifeInfoMemo)
+        lifeInfoItemDao.upsert(
+            LifeInfoItemEntity(
+                id = "debug-sample-lifeinfo-detail",
+                memoId = lifeInfoMemo.id,
+                benefit = "월 최대 5만원 교통비 지원",
+                target = "만 19-34세 청년 중 기준 소득 충족자",
+                applicationMethod = "온라인 포털 접수",
+                deadline = nextWeek,
+                deadlineReminderEnabled = true,
+                customReminderAt = tomorrow,
+                screenshotUris = emptyList(),
+                createdAt = now,
+            ),
+        )
+        setDeadlineReminderEnabled(lifeInfoMemo.id, true)
+        setCustomReminderAt(lifeInfoMemo.id, tomorrow)
+
+        val restaurantMemo = debugMemo(
+            id = "debug-sample-restaurant-memo",
+            captureId = "debug-sample-restaurant-capture",
+            title = "고바슨 반달스퀘어점",
+            summary = "반월당역 근처 카페로 디저트와 커피 메뉴를 함께 확인할 수 있습니다.",
+            category = CaptureCategory.Restaurant.name,
+            recommendedAction = "지도에서 위치를 확인하고 방문 리스트에 저장하세요.",
+            reminderAt = null,
+            now = now,
+        )
+        upsertDebugCapture(
+            id = restaurantMemo.captureId.orEmpty(),
+            category = restaurantMemo.category,
+            now = now,
+        )
+        captureDao.upsertMemo(restaurantMemo)
         restaurantMemoDao.upsertRestaurantAnalysis(
             restaurant = RestaurantMemoEntity(
-                id = DEBUG_RESTAURANT_ID,
-                memoId = memo.id,
-                captureId = memo.captureId,
-                name = memo.title,
-                summary = memo.summary,
-                address = "서울 성북구 안암동5가",
-                roadAddress = "서울 성북구 고려대로24길 6",
-                neighborhood = "안암동",
-                latitude = 37.5876985082328,
-                longitude = 127.029404929757,
+                id = "debug-sample-restaurant-detail",
+                memoId = restaurantMemo.id,
+                captureId = restaurantMemo.captureId,
+                name = "고바슨 반달스퀘어점",
+                summary = restaurantMemo.summary,
+                address = "대구 중구 달구벌대로 2095 반달스퀘어 4층",
+                roadAddress = "대구 중구 달구벌대로 2095",
+                neighborhood = "반월당",
+                latitude = 35.8656,
+                longitude = 128.5933,
                 mapProvider = "naver",
-                mapProviderPlaceId = "debug-baeksogjeong-anam",
-                estimatedPricePerPersonMin = 10000,
-                estimatedPricePerPersonMax = 16000,
-                confidence = 1.0,
+                mapProviderPlaceId = "debug-gobason-banwoldang",
+                estimatedPricePerPersonMin = 5000,
+                estimatedPricePerPersonMax = 12000,
+                confidence = 0.9,
                 needsUserReview = false,
                 createdAt = now,
                 updatedAt = now,
             ),
             menus = listOf(
                 RestaurantMenuEntity(
-                    id = "$DEBUG_RESTAURANT_ID-menu-1",
-                    restaurantMemoId = DEBUG_RESTAURANT_ID,
-                    name = "돈카츠",
-                    price = null,
+                    id = "debug-sample-restaurant-menu-1",
+                    restaurantMemoId = "debug-sample-restaurant-detail",
+                    name = "아메리카노",
+                    price = 4500,
                     currency = "KRW",
                     sortOrder = 0,
                 ),
                 RestaurantMenuEntity(
-                    id = "$DEBUG_RESTAURANT_ID-menu-2",
-                    restaurantMemoId = DEBUG_RESTAURANT_ID,
-                    name = "마제소바",
-                    price = null,
+                    id = "debug-sample-restaurant-menu-2",
+                    restaurantMemoId = "debug-sample-restaurant-detail",
+                    name = "디저트 세트",
+                    price = 9800,
                     currency = "KRW",
                     sortOrder = 1,
                 ),
             ),
             tags = listOf(
                 RestaurantTagEntity(
-                    id = "$DEBUG_RESTAURANT_ID-tag-1",
-                    restaurantMemoId = DEBUG_RESTAURANT_ID,
-                    name = "돈카츠",
+                    id = "debug-sample-restaurant-tag-1",
+                    restaurantMemoId = "debug-sample-restaurant-detail",
+                    name = "카페",
                 ),
                 RestaurantTagEntity(
-                    id = "$DEBUG_RESTAURANT_ID-tag-2",
-                    restaurantMemoId = DEBUG_RESTAURANT_ID,
-                    name = "안암",
+                    id = "debug-sample-restaurant-tag-2",
+                    restaurantMemoId = "debug-sample-restaurant-detail",
+                    name = "디저트",
                 ),
             ),
-            features = emptyList(),
-            actions = emptyList(),
+            features = listOf(
+                RestaurantFeatureEntity(
+                    id = "debug-sample-restaurant-feature-1",
+                    restaurantMemoId = "debug-sample-restaurant-detail",
+                    text = "반월당역 근처",
+                    sortOrder = 0,
+                ),
+                RestaurantFeatureEntity(
+                    id = "debug-sample-restaurant-feature-2",
+                    restaurantMemoId = "debug-sample-restaurant-detail",
+                    text = "커피와 디저트 메뉴 확인 필요",
+                    sortOrder = 1,
+                ),
+            ),
+            actions = listOf(
+                RestaurantRecommendedActionEntity(
+                    id = "debug-sample-restaurant-action-1",
+                    restaurantMemoId = "debug-sample-restaurant-detail",
+                    type = "open_map",
+                    title = "지도에서 위치 확인",
+                    description = "방문 전 영업 여부와 정확한 위치를 확인하세요.",
+                    sortOrder = 0,
+                ),
+            ),
             group = RestaurantGroupEntity(
-                id = "anam-restaurant",
-                title = "안암동 맛집",
-                neighborhood = "안암동",
-                representativeLatitude = 37.5876985082328,
-                representativeLongitude = 127.029404929757,
+                id = "debug-sample-banwoldang-restaurant-group",
+                title = "반월당 맛집",
+                neighborhood = "반월당",
+                representativeLatitude = 35.8656,
+                representativeLongitude = 128.5933,
                 createdAt = now,
                 updatedAt = now,
             ),
             groupMember = RestaurantGroupMemberEntity(
-                groupId = "anam-restaurant",
-                restaurantMemoId = DEBUG_RESTAURANT_ID,
+                groupId = "debug-sample-banwoldang-restaurant-group",
+                restaurantMemoId = "debug-sample-restaurant-detail",
             ),
+        )
+        setRestaurantLocationReminderEnabled(
+            restaurantMemoId = "debug-sample-restaurant-detail",
+            enabled = true,
         )
     }
 
     override suspend fun analyzeAndCreateMemo(captureId: String, maskedText: String): MemoEntity {
-        val response = captureMateApi.analyzeCapture(AnalyzeCaptureRequest(maskedText = maskedText))
-        val now = System.currentTimeMillis()
-        val memo = MemoEntity(
-            id = UUID.randomUUID().toString(),
-            captureId = captureId,
-            serverMemoId = response.serverMemoId,
-            title = response.title,
-            summary = response.summary,
-            category = response.category,
-            recommendedAction = response.recommendedAction,
-            reminderAt = response.reminderAt,
-            status = MemoStatus.Pending.name,
-            createdAt = now,
-            updatedAt = now,
+        throw UnsupportedOperationException(
+            "Text-only analysis is no longer supported. Use the backend image batch OCR API.",
         )
-        captureDao.upsertMemo(memo)
-
-        val categoryDetail = response.categoryDetail
-        if (categoryDetail != null) {
-            when (response.category) {
-                CaptureCategory.Study.name -> {
-                    val studyDetail = json.decodeFromJsonElement<StudyDetailDto>(categoryDetail)
-                    studyItemDao.upsert(
-                        StudyItemEntity(
-                            id = UUID.randomUUID().toString(),
-                            memoId = memo.id,
-                            keyPoints = studyDetail.keyPoints,
-                            selectedReviewDays = studyDetail.recommendedReviewDays,
-                            screenshotUris = studyDetail.screenshotUris,
-                            createdAt = now,
-                        ),
-                    )
-                }
-
-                CaptureCategory.LifeInfo.name -> {
-                    val lifeInfoDetail = json.decodeFromJsonElement<LifeInfoDetailDto>(categoryDetail)
-                    lifeInfoItemDao.upsert(
-                        LifeInfoItemEntity(
-                            id = UUID.randomUUID().toString(),
-                            memoId = memo.id,
-                            benefit = lifeInfoDetail.benefit,
-                            target = lifeInfoDetail.target,
-                            applicationMethod = lifeInfoDetail.applicationMethod,
-                            deadline = lifeInfoDetail.deadline,
-                            deadlineReminderEnabled = false,
-                            customReminderAt = null,
-                            screenshotUris = lifeInfoDetail.screenshotUris,
-                            createdAt = now,
-                        ),
-                    )
-                }
-
-                CaptureCategory.Schedule.name -> {
-                    val scheduleDetail = json.decodeFromJsonElement<ScheduleDetailDto>(categoryDetail)
-                    scheduleItemDao.upsert(
-                        ScheduleItemEntity(
-                            id = UUID.randomUUID().toString(),
-                            memoId = memo.id,
-                            eventTitle = scheduleDetail.eventTitle ?: memo.title,
-                            deadlineAt = scheduleDetail.deadlineAt ?: memo.reminderAt,
-                            eventDateText = scheduleDetail.eventDateText,
-                            location = scheduleDetail.location,
-                            screenshotUris = scheduleDetail.screenshotUris,
-                            customReminderAt = null,
-                            googleCalendarEventId = null,
-                            googleCalendarHtmlLink = null,
-                            createdAt = now,
-                        ),
-                    )
-                }
-            }
-        }
-
-        if (response.category.equals(CaptureCategory.Restaurant.name, ignoreCase = true)) {
-            val restaurantDetail = response.categoryDetail ?: response.details
-            val detail = if (restaurantDetail != null) {
-                json.decodeFromJsonElement<RestaurantAnalysisDto>(restaurantDetail)
-            } else {
-                RestaurantAnalysisDto(
-                    restaurant = RestaurantPlaceDto(name = memo.title),
-                    confidence = 0.0,
-                    needsUserReview = true,
-                )
-            }
-            upsertRestaurantAnalysis(
-                memo = memo,
-                detail = detail,
-                now = now,
-            )
-        }
-
-        return memo
     }
 
     override suspend fun confirmMemo(memoId: String) {
@@ -393,6 +439,42 @@ class DefaultCaptureRepository(
         )
     }
 
+    override suspend fun setRestaurantLocationReminderEnabled(
+        restaurantMemoId: String,
+        enabled: Boolean,
+        radiusMeters: Float,
+    ) {
+        if (!enabled) {
+            restaurantMemoDao.updateLocationReminder(
+                restaurantMemoId = restaurantMemoId,
+                enabled = false,
+                radiusMeters = radiusMeters,
+            )
+            restaurantGeofenceManager.unregister(restaurantMemoId)
+            return
+        }
+
+        val restaurant = restaurantMemoDao.getRestaurantMemo(restaurantMemoId) ?: return
+        val latitude = restaurant.latitude ?: return
+        val longitude = restaurant.longitude ?: return
+
+        val registered = restaurantGeofenceManager.register(
+            restaurantMemoId = restaurant.id,
+            memoId = restaurant.memoId,
+            name = restaurant.name,
+            latitude = latitude,
+            longitude = longitude,
+            radiusMeters = radiusMeters,
+        )
+        if (registered) {
+            restaurantMemoDao.updateLocationReminder(
+                restaurantMemoId = restaurantMemoId,
+                enabled = true,
+                radiusMeters = radiusMeters,
+            )
+        }
+    }
+
     override suspend fun addScheduleToGoogleCalendar(
         context: Context,
         memoId: String,
@@ -473,11 +555,152 @@ class DefaultCaptureRepository(
         )
     }
 
+    override suspend fun upsertCapture(capture: CaptureEntity) {
+        captureDao.upsertCapture(capture)
+    }
+
+    override suspend fun upsertMemo(memo: MemoEntity) {
+        captureDao.upsertMemo(memo)
+    }
+
+    override suspend fun upsertMemoDetails(
+        memo: MemoEntity,
+        analysis: AnalyzeCaptureResponse,
+        screenshotUris: List<String>,
+        createdAt: Long,
+    ) {
+        val detailElement = analysis.categoryDetail ?: analysis.details ?: return
+        runCatching {
+            when {
+                memo.category.equals(CaptureCategory.Study.name, ignoreCase = true) -> {
+                    val detail = json.decodeFromJsonElement<StudyDetailDto>(
+                        detailElement.unwrapDetail("study"),
+                    )
+                    studyItemDao.upsert(
+                        StudyItemEntity(
+                            id = "${memo.id}-study-detail",
+                            memoId = memo.id,
+                            keyPoints = detail.keyPoints,
+                            selectedReviewDays = detail.recommendedReviewDays,
+                            reminderConfirmed = true,
+                            screenshotUris = detail.screenshotUris.ifEmpty { screenshotUris },
+                            createdAt = createdAt,
+                        ),
+                    )
+                    scheduleStudyReminder(memo, detail.recommendedReviewDays)
+                }
+
+                memo.category.equals(CaptureCategory.LifeInfo.name, ignoreCase = true) -> {
+                    val detail = json.decodeFromJsonElement<LifeInfoDetailDto>(
+                        detailElement.unwrapDetail("lifeInfo", "life_info", "life"),
+                    )
+                    lifeInfoItemDao.upsert(
+                        LifeInfoItemEntity(
+                            id = "${memo.id}-life-info-detail",
+                            memoId = memo.id,
+                            benefit = detail.benefit,
+                            target = detail.target,
+                            applicationMethod = detail.applicationMethod,
+                            deadline = detail.deadline,
+                            deadlineReminderEnabled = true,
+                            customReminderAt = memo.reminderAt,
+                            screenshotUris = detail.screenshotUris.ifEmpty { screenshotUris },
+                            createdAt = createdAt,
+                        ),
+                    )
+                    setDeadlineReminderEnabled(memo.id, true)
+                    memo.reminderAt?.let { setCustomReminderAt(memo.id, it) }
+                }
+
+                memo.category.equals(CaptureCategory.Schedule.name, ignoreCase = true) -> {
+                    val detail = json.decodeFromJsonElement<ScheduleDetailDto>(
+                        detailElement.unwrapDetail("schedule"),
+                    )
+                    scheduleItemDao.upsert(
+                        ScheduleItemEntity(
+                            id = "${memo.id}-schedule-detail",
+                            memoId = memo.id,
+                            eventTitle = detail.eventTitle ?: memo.title,
+                            deadlineAt = detail.deadlineAt ?: memo.reminderAt,
+                            eventDateText = detail.eventDateText,
+                            location = detail.location,
+                            screenshotUris = detail.screenshotUris.ifEmpty { screenshotUris },
+                            customReminderAt = memo.reminderAt ?: detail.deadlineAt,
+                            googleCalendarEventId = null,
+                            googleCalendarHtmlLink = null,
+                            createdAt = createdAt,
+                        ),
+                    )
+                    (memo.reminderAt ?: detail.deadlineAt)?.let { reminderAt ->
+                        setScheduleCustomReminderAt(memo.id, reminderAt)
+                    }
+                }
+
+                memo.category.equals(CaptureCategory.Restaurant.name, ignoreCase = true) -> {
+                    val detail = json.decodeFromJsonElement<RestaurantAnalysisDto>(
+                        detailElement.unwrapDetail("restaurantAnalysis"),
+                    )
+                    val restaurantMemoId = upsertRestaurantAnalysis(
+                        memo = memo,
+                        detail = detail,
+                        now = createdAt,
+                    )
+                    setRestaurantLocationReminderEnabled(
+                        restaurantMemoId = restaurantMemoId,
+                        enabled = true,
+                    )
+                }
+            }
+        }
+    }
+
+    private suspend fun upsertDebugCapture(id: String, category: String, now: Long) {
+        captureDao.upsertCapture(
+            CaptureEntity(
+                id = id,
+                localImageUri = "",
+                rawTextLocalOnly = "",
+                maskedText = "",
+                category = category,
+                capturedAt = now,
+                createdAt = now,
+            ),
+        )
+    }
+
+    private fun debugMemo(
+        id: String,
+        captureId: String,
+        title: String,
+        summary: String,
+        category: String,
+        recommendedAction: String?,
+        reminderAt: Long?,
+        now: Long,
+    ): MemoEntity = MemoEntity(
+        id = id,
+        captureId = captureId,
+        serverMemoId = null,
+        title = title,
+        summary = summary,
+        category = category,
+        recommendedAction = recommendedAction,
+        reminderAt = reminderAt,
+        status = MemoStatus.Saved.name,
+        createdAt = now,
+        updatedAt = now,
+    )
+
+    private fun JsonElement.unwrapDetail(vararg keys: String): JsonElement {
+        val jsonObject = this as? JsonObject ?: return this
+        return keys.firstNotNullOfOrNull { key -> jsonObject[key] } ?: this
+    }
+
     private suspend fun upsertRestaurantAnalysis(
         memo: MemoEntity,
         detail: RestaurantAnalysisDto,
         now: Long,
-    ) {
+    ): String {
         val restaurant = detail.restaurant
         val restaurantMemoId = UUID.randomUUID().toString()
         val restaurantName = restaurant.name?.takeIf { it.isNotBlank() } ?: memo.title
@@ -574,6 +797,7 @@ class DefaultCaptureRepository(
             group = groupEntity,
             groupMember = groupMember,
         )
+        return restaurantMemoId
     }
 
     private fun extractNeighborhood(value: String?): String? {
@@ -596,9 +820,5 @@ class DefaultCaptureRepository(
     private fun lifeInfoDeadlineReminderWorkName(memoId: String) = "lifeinfo_deadline_reminder_$memoId"
     private fun lifeInfoCustomReminderWorkName(memoId: String) = "lifeinfo_custom_reminder_$memoId"
 
-    private companion object {
-        const val DEBUG_RESTAURANT_MEMO_ID = "debug-memo-baeksogjeong-anam"
-        const val DEBUG_RESTAURANT_ID = "debug-restaurant-baeksogjeong-anam"
-    }
     private fun scheduleCustomReminderWorkName(memoId: String) = "schedule_custom_reminder_$memoId"
 }

@@ -3,10 +3,9 @@ package com.capturemate.app.core.di
 import android.content.Context
 import androidx.room.Room
 import com.capturemate.app.BuildConfig
-import com.capturemate.app.core.ai.MlKitOcrTextExtractor
-import com.capturemate.app.core.ai.OcrTextExtractor
 import com.capturemate.app.core.auth.GoogleSignInClient
 import com.capturemate.app.core.calendar.GoogleCalendarClient
+import com.capturemate.app.core.location.RestaurantGeofenceManager
 import com.capturemate.app.core.privacy.SensitiveTextMasker
 import com.capturemate.app.data.local.AuthSessionStore
 import com.capturemate.app.data.local.CaptureMateDatabase
@@ -15,6 +14,7 @@ import com.capturemate.app.data.local.CaptureMateDatabase.Companion.MIGRATION_2_
 import com.capturemate.app.data.local.CaptureMateDatabase.Companion.MIGRATION_3_4
 import com.capturemate.app.data.local.CaptureMateDatabase.Companion.MIGRATION_4_5
 import com.capturemate.app.data.local.CaptureMateDatabase.Companion.MIGRATION_5_6
+import com.capturemate.app.data.local.CaptureMateDatabase.Companion.MIGRATION_6_7
 import com.capturemate.app.data.remote.CaptureMateApi
 import com.capturemate.app.data.repository.DefaultAuthRepository
 import com.capturemate.app.data.repository.DefaultCaptureRepository
@@ -36,7 +36,7 @@ class AppContainer(context: Context) {
             appContext,
             CaptureMateDatabase::class.java,
             "capturemate.db",
-        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
 
         if (BuildConfig.DEBUG) {
             builder
@@ -45,14 +45,6 @@ class AppContainer(context: Context) {
         }
 
         builder.build()
-    }
-
-    val ocrTextExtractor: OcrTextExtractor by lazy {
-        MlKitOcrTextExtractor(appContext)
-    }
-
-    val sensitiveTextMasker: SensitiveTextMasker by lazy {
-        SensitiveTextMasker()
     }
 
     val googleSignInClient: GoogleSignInClient by lazy {
@@ -91,10 +83,10 @@ class AppContainer(context: Context) {
 
         OkHttpClient.Builder()
             .addInterceptor(logging)
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
-            .callTimeout(75, TimeUnit.SECONDS)
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(180, TimeUnit.SECONDS)
+            .callTimeout(180, TimeUnit.SECONDS)
             .build()
     }
 
@@ -103,6 +95,10 @@ class AppContainer(context: Context) {
             okHttpClient = okHttpClient,
             json = json,
         )
+    }
+
+    private val restaurantGeofenceManager: RestaurantGeofenceManager by lazy {
+        RestaurantGeofenceManager(appContext)
     }
 
     val captureMateApi: CaptureMateApi by lazy {
@@ -122,6 +118,7 @@ class AppContainer(context: Context) {
             scheduleItemDao = database.scheduleItemDao(),
             googleCalendarClient = googleCalendarClient,
             restaurantMemoDao = database.restaurantMemoDao(),
+            restaurantGeofenceManager = restaurantGeofenceManager,
             captureMateApi = captureMateApi,
             json = json,
             appContext = appContext,

@@ -1,6 +1,6 @@
 # CaptureMate 안드로이드
 
-CaptureMate 안드로이드 앱 저장소입니다. 캡처 이미지에서 텍스트를 추출하고, 민감정보를 로컬에서 마스킹한 뒤, 필요한 분석 요청만 AI 서버로 보냅니다.
+CaptureMate 안드로이드 앱 저장소입니다. 캡처 이미지를 백엔드 OCR/AI 서버로 전송하고, 서버 분석 결과를 앱에서 확인하고 저장합니다.
 
 ## 저장소 구조
 
@@ -9,13 +9,15 @@ CaptureMate 안드로이드 앱 저장소입니다. 캡처 이미지에서 텍�
 ```text
 captureMate
   안드로이드 앱
-  로컬 OCR
-  민감정보 마스킹
+  스크린샷 감지
+  이미지 업로드
   Room 로컬 DB
   알림 및 앱 화면
 
 capturemate-ai
   AI 분석 서버
+  OCR
+  민감정보 마스킹
   요약
   카테고리 분류
   추천 액션 생성
@@ -31,9 +33,19 @@ capturemate-ai
 - Retrofit, OkHttp
 - kotlinx.serialization
 - WorkManager
-- Google ML Kit Text Recognition
 
 ## 로컬 설정
+
+### 권장 개발 환경
+
+이 프로젝트는 Android Gradle Plugin 9.2.1 기준으로 맞춥니다. Android Studio에서 Gradle Sync가 실패하면서 `Latest supported version is AGP 9.1.0` 같은 메시지가 보이면, 프로젝트 버전을 낮추기보다 Android Studio를 AGP 9.2.1을 지원하는 버전으로 업그레이드합니다.
+
+- Android Gradle Plugin: 9.2.1
+- Gradle Wrapper: 9.4.1
+- JDK: 17
+- compileSdk / targetSdk: 36
+- minSdk: 29
+- Android SDK Build Tools: 36.0.0
 
 `local.properties`는 각자 로컬 환경에 맞게 생성합니다. Android Studio로 프로젝트를 열면 보통 자동으로 생성됩니다.
 
@@ -69,16 +81,22 @@ py -m uvicorn app.main:app --reload --port 8001
 
 Android Studio에서 프로젝트를 열고 `app` 구성을 실행합니다.
 
-명령어로 테스트할 경우:
+macOS 또는 Linux에서 명령어로 빌드하거나 테스트할 경우:
 
 ```bash
-.\gradlew.bat testDebugUnitTest
+./gradlew app:assembleDebug
+./gradlew app:testDebugUnitTest
+```
+
+Windows에서 명령어로 테스트할 경우:
+
+```bash
+.\gradlew.bat app:testDebugUnitTest
 ```
 
 ## 데이터 처리 원칙
 
-- 원본 캡처 이미지는 서버로 보내지 않습니다.
-- 원본 OCR 텍스트는 로컬 Room DB에만 저장합니다.
-- 이메일, 전화번호, 계좌번호 같은 민감정보는 로컬에서 마스킹합니다.
-- AI 서버에는 마스킹된 텍스트만 보냅니다.
-
+- 원본 캡처 이미지는 백엔드 OCR을 위해 서버로 전송합니다.
+- 앱은 로컬 파일 경로나 실제 파일명을 서버로 보내지 않습니다.
+- 앱은 OCR 원문을 생성하거나 서버 요청 필드로 보내지 않습니다.
+- OCR, 개인정보 마스킹, 유용성 판단은 서버에서 수행합니다.

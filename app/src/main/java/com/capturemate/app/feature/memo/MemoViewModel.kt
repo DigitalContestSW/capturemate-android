@@ -173,7 +173,7 @@ class MemoViewModel(
         detailJob?.cancel()
         detailJob = viewModelScope.launch {
             val memoFlow = repository.observeMemoById(memoId)
-            combine(
+            val baseDetailFlow = combine(
                 memoFlow,
                 memoFlow.flatMapLatest { memo ->
                     memo?.captureId?.let { repository.observeCaptureById(it) } ?: flowOf(null)
@@ -190,6 +190,12 @@ class MemoViewModel(
                     scheduleItem = scheduleItem,
                     isLoading = false,
                 )
+            }
+            combine(
+                baseDetailFlow,
+                repository.observeRestaurantMemoByMemoId(memoId),
+            ) { detail, restaurantMemo ->
+                detail.copy(restaurantMemo = restaurantMemo)
             }.collect { _detailState.value = it }
         }
     }
@@ -215,6 +221,20 @@ class MemoViewModel(
     fun setScheduleCustomReminderDate(memoId: String, at: Long?) {
         viewModelScope.launch {
             repository.setScheduleCustomReminderAt(memoId, at)
+        }
+    }
+
+    fun setRestaurantLocationReminderEnabled(
+        restaurantMemoId: String,
+        enabled: Boolean,
+        radiusMeters: Float,
+    ) {
+        viewModelScope.launch {
+            repository.setRestaurantLocationReminderEnabled(
+                restaurantMemoId = restaurantMemoId,
+                enabled = enabled,
+                radiusMeters = radiusMeters,
+            )
         }
     }
 

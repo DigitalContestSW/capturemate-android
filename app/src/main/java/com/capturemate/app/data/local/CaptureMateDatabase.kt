@@ -38,7 +38,7 @@ import com.capturemate.app.data.local.entity.StudyItemEntity
         RestaurantGroupEntity::class,
         RestaurantGroupMemberEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -52,29 +52,19 @@ abstract class CaptureMateDatabase : RoomDatabase() {
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL(
-                    """
-                    CREATE TABLE IF NOT EXISTS `schedule_items` (
-                        `id` TEXT NOT NULL,
-                        `memoId` TEXT NOT NULL,
-                        `eventTitle` TEXT NOT NULL,
-                        `deadlineAt` INTEGER,
-                        `eventDateText` TEXT,
-                        `location` TEXT,
-                        `screenshotUris` TEXT NOT NULL,
-                        `customReminderAt` INTEGER,
-                        `createdAt` INTEGER NOT NULL,
-                        PRIMARY KEY(`id`)
-                    )
-                    """.trimIndent(),
-                )
+                db.ensureScheduleItemsTable()
             }
         }
 
         val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE `schedule_items` ADD COLUMN `googleCalendarEventId` TEXT")
-                db.execSQL("ALTER TABLE `schedule_items` ADD COLUMN `googleCalendarHtmlLink` TEXT")
+                db.ensureScheduleItemsTable()
+                if (!db.hasColumn("schedule_items", "googleCalendarEventId")) {
+                    db.execSQL("ALTER TABLE `schedule_items` ADD COLUMN `googleCalendarEventId` TEXT")
+                }
+                if (!db.hasColumn("schedule_items", "googleCalendarHtmlLink")) {
+                    db.execSQL("ALTER TABLE `schedule_items` ADD COLUMN `googleCalendarHtmlLink` TEXT")
+                }
             }
         }
 
@@ -180,15 +170,81 @@ abstract class CaptureMateDatabase : RoomDatabase() {
 
         val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE `study_items` ADD COLUMN `screenshotUris` TEXT NOT NULL DEFAULT '[]'")
-                db.execSQL("ALTER TABLE `life_info_items` ADD COLUMN `screenshotUris` TEXT NOT NULL DEFAULT '[]'")
+                if (!db.hasColumn("study_items", "screenshotUris")) {
+                    db.execSQL("ALTER TABLE `study_items` ADD COLUMN `screenshotUris` TEXT NOT NULL DEFAULT '[]'")
+                }
+                if (!db.hasColumn("life_info_items", "screenshotUris")) {
+                    db.execSQL("ALTER TABLE `life_info_items` ADD COLUMN `screenshotUris` TEXT NOT NULL DEFAULT '[]'")
+                }
             }
         }
 
         val MIGRATION_5_6 = object : Migration(5, 6) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE `study_items` ADD COLUMN `reminderConfirmed` INTEGER NOT NULL DEFAULT 0")
+                if (!db.hasColumn("study_items", "reminderConfirmed")) {
+                    db.execSQL("ALTER TABLE `study_items` ADD COLUMN `reminderConfirmed` INTEGER NOT NULL DEFAULT 0")
+                }
+            }
+        }
+
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                if (!db.hasColumn("study_items", "screenshotUris")) {
+                    db.execSQL("ALTER TABLE `study_items` ADD COLUMN `screenshotUris` TEXT NOT NULL DEFAULT '[]'")
+                }
+                if (!db.hasColumn("study_items", "reminderConfirmed")) {
+                    db.execSQL("ALTER TABLE `study_items` ADD COLUMN `reminderConfirmed` INTEGER NOT NULL DEFAULT 0")
+                }
+                if (!db.hasColumn("life_info_items", "screenshotUris")) {
+                    db.execSQL("ALTER TABLE `life_info_items` ADD COLUMN `screenshotUris` TEXT NOT NULL DEFAULT '[]'")
+                }
+                if (!db.hasColumn("restaurant_memos", "locationReminderEnabled")) {
+                    db.execSQL(
+                        "ALTER TABLE `restaurant_memos` ADD COLUMN `locationReminderEnabled` INTEGER NOT NULL DEFAULT 0",
+                    )
+                }
+                if (!db.hasColumn("restaurant_memos", "locationReminderRadiusMeters")) {
+                    db.execSQL(
+                        "ALTER TABLE `restaurant_memos` ADD COLUMN `locationReminderRadiusMeters` REAL NOT NULL DEFAULT 200",
+                    )
+                }
+                if (!db.hasColumn("restaurant_memos", "locationReminderLastTriggeredAt")) {
+                    db.execSQL(
+                        "ALTER TABLE `restaurant_memos` ADD COLUMN `locationReminderLastTriggeredAt` INTEGER",
+                    )
+                }
             }
         }
     }
+}
+
+private fun SupportSQLiteDatabase.hasColumn(tableName: String, columnName: String): Boolean {
+    query("PRAGMA table_info(`$tableName`)").use { cursor ->
+        val nameIndex = cursor.getColumnIndex("name")
+        while (cursor.moveToNext()) {
+            if (cursor.getString(nameIndex) == columnName) {
+                return true
+            }
+        }
+    }
+    return false
+}
+
+private fun SupportSQLiteDatabase.ensureScheduleItemsTable() {
+    execSQL(
+        """
+        CREATE TABLE IF NOT EXISTS `schedule_items` (
+            `id` TEXT NOT NULL,
+            `memoId` TEXT NOT NULL,
+            `eventTitle` TEXT NOT NULL,
+            `deadlineAt` INTEGER,
+            `eventDateText` TEXT,
+            `location` TEXT,
+            `screenshotUris` TEXT NOT NULL,
+            `customReminderAt` INTEGER,
+            `createdAt` INTEGER NOT NULL,
+            PRIMARY KEY(`id`)
+        )
+        """.trimIndent(),
+    )
 }

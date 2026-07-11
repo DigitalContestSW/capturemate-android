@@ -20,6 +20,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
@@ -66,6 +67,8 @@ import com.capturemate.app.domain.repository.CaptureRepository
 import com.capturemate.app.feature.common.categoryIcon
 import com.capturemate.app.feature.common.categoryLabel
 import com.capturemate.app.feature.common.rememberLocalBitmap
+import com.capturemate.app.feature.restaurant.RestaurantMapPreviewCard
+import com.capturemate.app.feature.restaurant.RestaurantViewModel
 import com.capturemate.app.ui.theme.CaptureBackground
 import com.capturemate.app.ui.theme.CaptureBorder
 import com.capturemate.app.ui.theme.CaptureDestructive
@@ -99,10 +102,13 @@ fun MemoListRoute(
     repository: CaptureRepository,
     onMemoClick: (String) -> Unit,
     onOpenRestaurantMap: () -> Unit,
+    activeCategory: String = CATEGORY_ALL,
+    onActiveCategoryChange: (String) -> Unit = {},
     viewModel: MemoViewModel = viewModel(factory = MemoViewModel.Factory(repository)),
+    restaurantViewModel: RestaurantViewModel = viewModel(factory = RestaurantViewModel.Factory(repository)),
 ) {
     val state by viewModel.listState.collectAsState()
-    var activeCategory by remember { mutableStateOf(CATEGORY_ALL) }
+    val restaurantState by restaurantViewModel.mapState.collectAsState()
     var sort by remember { mutableStateOf(SortOption.Latest) }
     var status by remember { mutableStateOf(StatusFilter.All) }
     var isGrid by remember { mutableStateOf(false) }
@@ -129,6 +135,10 @@ fun MemoListRoute(
     }
     val weekAgoMillis = remember { System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000 }
     val weekCount = remember(state.memos) { state.memos.count { it.createdAt > weekAgoMillis } }
+    val isRestaurantCategory = activeCategory == "Restaurant"
+    val restaurantsWithCoordinates = restaurantState.restaurants.filter {
+        it.latitude != null && it.longitude != null
+    }
 
     Scaffold(containerColor = CaptureBackground) { innerPadding ->
         if (showSearch) {
@@ -150,13 +160,7 @@ fun MemoListRoute(
             )
             CategoryTabs(
                 active = activeCategory,
-                onSelect = { category ->
-                    if (category == "Restaurant") {
-                        onOpenRestaurantMap()
-                    } else {
-                        activeCategory = category
-                    }
-                },
+                onSelect = onActiveCategoryChange,
             )
             FilterBar(
                 sort = sort,
@@ -189,6 +193,14 @@ fun MemoListRoute(
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
+                        if (isRestaurantCategory) {
+                            item(span = { GridItemSpan(maxLineSpan) }) {
+                                RestaurantMapPreviewCard(
+                                    restaurants = restaurantsWithCoordinates,
+                                    onRestaurantClick = onMemoClick,
+                                )
+                            }
+                        }
                         items(items = filtered, key = { it.id }) { memo ->
                             MemoGridCard(
                                 memo = memo,
@@ -205,6 +217,14 @@ fun MemoListRoute(
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
+                        if (isRestaurantCategory) {
+                            item {
+                                RestaurantMapPreviewCard(
+                                    restaurants = restaurantsWithCoordinates,
+                                    onRestaurantClick = onMemoClick,
+                                )
+                            }
+                        }
                         items(items = filtered, key = { it.id }) { memo ->
                             MemoListRow(
                                 memo = memo,

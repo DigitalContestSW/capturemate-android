@@ -22,6 +22,9 @@ abstract class RestaurantMemoDao {
     @Query("SELECT * FROM restaurant_memos WHERE id = :id LIMIT 1")
     abstract fun observeRestaurantMemo(id: String): Flow<RestaurantMemoEntity?>
 
+    @Query("SELECT * FROM restaurant_memos WHERE id = :id LIMIT 1")
+    abstract suspend fun getRestaurantMemo(id: String): RestaurantMemoEntity?
+
     @Query("SELECT * FROM restaurant_memos WHERE memoId = :memoId LIMIT 1")
     abstract fun observeRestaurantMemoByMemoId(memoId: String): Flow<RestaurantMemoEntity?>
 
@@ -95,6 +98,20 @@ abstract class RestaurantMemoDao {
 
     @Query("SELECT id FROM restaurant_memos WHERE memoId = :memoId LIMIT 1")
     protected abstract suspend fun restaurantIdByMemoId(memoId: String): String?
+
+    @Query(
+        """
+        UPDATE restaurant_memos
+        SET locationReminderEnabled = :enabled,
+            locationReminderRadiusMeters = :radiusMeters
+        WHERE id = :restaurantMemoId
+        """,
+    )
+    abstract suspend fun updateLocationReminder(
+        restaurantMemoId: String,
+        enabled: Boolean,
+        radiusMeters: Float,
+    )
 
     @Query("DELETE FROM restaurant_memos WHERE id = :restaurantMemoId")
     protected abstract suspend fun deleteRestaurantMemoById(restaurantMemoId: String)
