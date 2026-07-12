@@ -38,7 +38,7 @@ import com.capturemate.app.data.local.entity.StudyItemEntity
         RestaurantGroupEntity::class,
         RestaurantGroupMemberEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -211,6 +211,16 @@ abstract class CaptureMateDatabase : RoomDatabase() {
                 if (!db.hasColumn("restaurant_memos", "locationReminderLastTriggeredAt")) {
                     db.execSQL(
                         "ALTER TABLE `restaurant_memos` ADD COLUMN `locationReminderLastTriggeredAt` INTEGER",
+                    )
+                }
+            }
+        }
+
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                if (!db.hasColumn("restaurant_memos", "screenshotUris")) {
+                    db.execSQL(
+                        "ALTER TABLE `restaurant_memos` ADD COLUMN `screenshotUris` TEXT NOT NULL DEFAULT '[]'",
                     )
                 }
             }

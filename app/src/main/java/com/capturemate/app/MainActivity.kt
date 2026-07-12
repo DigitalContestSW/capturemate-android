@@ -244,6 +244,7 @@ class MainActivity : FragmentActivity() {
                                         repository = repository,
                                         onMemoClick = { selectedMemoId = it },
                                         onOpenRestaurantMap = { showRestaurantMap = true },
+                                        onRestaurantGroupClick = { selectedRestaurantGroupId = it },
                                         activeCategory = memoListActiveCategory,
                                         onActiveCategoryChange = { memoListActiveCategory = it },
                                     )

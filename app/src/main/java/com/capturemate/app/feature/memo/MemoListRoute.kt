@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.capturemate.app.data.local.entity.MemoEntity
+import com.capturemate.app.data.local.entity.RestaurantGroupEntity
 import com.capturemate.app.domain.model.normalizeCaptureCategory
 import com.capturemate.app.domain.repository.CaptureRepository
 import com.capturemate.app.feature.common.categoryIcon
@@ -103,6 +104,7 @@ fun MemoListRoute(
     repository: CaptureRepository,
     onMemoClick: (String) -> Unit,
     onOpenRestaurantMap: () -> Unit,
+    onRestaurantGroupClick: (String) -> Unit,
     activeCategory: String = CATEGORY_ALL,
     onActiveCategoryChange: (String) -> Unit = {},
     viewModel: MemoViewModel = viewModel(factory = MemoViewModel.Factory(repository)),
@@ -196,6 +198,13 @@ fun MemoListRoute(
                     ) {
                         if (isRestaurantCategory) {
                             item(span = { GridItemSpan(maxLineSpan) }) {
+                                RestaurantNeighborhoodGroupSection(
+                                    groups = restaurantState.visibleGroups,
+                                    onGroupClick = onRestaurantGroupClick,
+                                    onOpenMap = onOpenRestaurantMap,
+                                )
+                            }
+                            item(span = { GridItemSpan(maxLineSpan) }) {
                                 RestaurantMapPreviewCard(
                                     restaurants = restaurantsWithCoordinates,
                                     onRestaurantClick = onMemoClick,
@@ -220,6 +229,13 @@ fun MemoListRoute(
                     ) {
                         if (isRestaurantCategory) {
                             item {
+                                RestaurantNeighborhoodGroupSection(
+                                    groups = restaurantState.visibleGroups,
+                                    onGroupClick = onRestaurantGroupClick,
+                                    onOpenMap = onOpenRestaurantMap,
+                                )
+                            }
+                            item {
                                 RestaurantMapPreviewCard(
                                     restaurants = restaurantsWithCoordinates,
                                     onRestaurantClick = onMemoClick,
@@ -231,6 +247,75 @@ fun MemoListRoute(
                                 memo = memo,
                                 info = state.itemInfo[memo.id],
                                 onClick = { onMemoClick(memo.id) },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RestaurantNeighborhoodGroupSection(
+    groups: List<RestaurantGroupEntity>,
+    onGroupClick: (String) -> Unit,
+    onOpenMap: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "동네별 맛집",
+                color = CaptureInk,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = "전체 지도 보기",
+                modifier = Modifier.clickable(onClick = onOpenMap).padding(6.dp),
+                color = CaptureMutedForeground,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        if (groups.isEmpty()) {
+            Text(
+                text = "같은 동네 맛집이 2곳 이상 모이면 그룹이 만들어져요.",
+                color = CaptureMutedForeground,
+                fontSize = 12.sp,
+            )
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                groups.forEach { group ->
+                    Surface(
+                        onClick = { onGroupClick(group.id) },
+                        shape = RoundedCornerShape(14.dp),
+                        color = CaptureSurface,
+                        border = BorderStroke(1.dp, CaptureBorder),
+                    ) {
+                        Column(
+                            modifier = Modifier.width(160.dp).padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Text(
+                                text = group.title,
+                                color = CaptureInk,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = group.neighborhood,
+                                color = CaptureMutedForeground,
+                                fontSize = 12.sp,
                             )
                         }
                     }
