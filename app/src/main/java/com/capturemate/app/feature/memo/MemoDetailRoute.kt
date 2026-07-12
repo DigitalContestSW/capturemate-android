@@ -71,6 +71,7 @@ import com.capturemate.app.core.notification.NotificationScheduler
 import com.capturemate.app.data.local.entity.LifeInfoItemEntity
 import com.capturemate.app.data.local.entity.ScheduleItemEntity
 import com.capturemate.app.data.local.entity.StudyItemEntity
+import com.capturemate.app.domain.model.MemoStatus
 import com.capturemate.app.domain.model.RestaurantMemo
 import com.capturemate.app.domain.repository.CaptureRepository
 import com.capturemate.app.feature.common.categoryIcon
@@ -144,6 +145,8 @@ fun MemoDetailRoute(
                 }
             } else {
                 Column(modifier = Modifier.fillMaxSize()) {
+                    val isPendingMemo = memo.status == MemoStatus.Pending.name
+
                     DetailHeader(
                         title = memo.title,
                         onBack = onBack,
@@ -177,55 +180,59 @@ fun MemoDetailRoute(
                             recommendedAction = memo.recommendedAction,
                         )
 
-                        if (BuildConfig.DEBUG) {
-                            DebugNotificationTestCard(memoId = memo.id, memoTitle = memo.title)
-                        }
+                        if (isPendingMemo) {
+                            SaveMemoButton(onClick = { viewModel.confirmMemo(memo.id) })
+                        } else {
+                            if (BuildConfig.DEBUG) {
+                                DebugNotificationTestCard(memoId = memo.id, memoTitle = memo.title)
+                            }
 
-                        state.studyItem?.let { studyItem ->
-                            StudySection(
-                                studyItem = studyItem,
-                                onSelectReviewDays = { days -> viewModel.selectReviewDays(memo.id, days) },
-                            )
-                        }
+                            state.studyItem?.let { studyItem ->
+                                StudySection(
+                                    studyItem = studyItem,
+                                    onSelectReviewDays = { days -> viewModel.selectReviewDays(memo.id, days) },
+                                )
+                            }
 
-                        state.lifeInfoItem?.let { lifeInfoItem ->
-                            LifeInfoSection(
-                                lifeInfoItem = lifeInfoItem,
-                                onToggleDeadlineReminder = { enabled ->
-                                    viewModel.toggleDeadlineReminder(memo.id, enabled)
-                                },
-                                onSetCustomReminderDate = { at ->
-                                    viewModel.setCustomReminderDate(memo.id, at)
-                                },
-                            )
-                        }
+                            state.lifeInfoItem?.let { lifeInfoItem ->
+                                LifeInfoSection(
+                                    lifeInfoItem = lifeInfoItem,
+                                    onToggleDeadlineReminder = { enabled ->
+                                        viewModel.toggleDeadlineReminder(memo.id, enabled)
+                                    },
+                                    onSetCustomReminderDate = { at ->
+                                        viewModel.setCustomReminderDate(memo.id, at)
+                                    },
+                                )
+                            }
 
-                        state.scheduleItem?.let { scheduleItem ->
-                            ScheduleSection(
-                                scheduleItem = scheduleItem,
-                                isAddingToGoogleCalendar = state.isAddingToGoogleCalendar,
-                                googleCalendarMessage = state.googleCalendarMessage,
-                                onAddToGoogleCalendar = {
-                                    viewModel.addScheduleToGoogleCalendar(context, memo.id)
-                                },
-                                onSetCustomReminderDate = { at ->
-                                    viewModel.setScheduleCustomReminderDate(memo.id, at)
-                                },
-                            )
-                        }
+                            state.scheduleItem?.let { scheduleItem ->
+                                ScheduleSection(
+                                    scheduleItem = scheduleItem,
+                                    isAddingToGoogleCalendar = state.isAddingToGoogleCalendar,
+                                    googleCalendarMessage = state.googleCalendarMessage,
+                                    onAddToGoogleCalendar = {
+                                        viewModel.addScheduleToGoogleCalendar(context, memo.id)
+                                    },
+                                    onSetCustomReminderDate = { at ->
+                                        viewModel.setScheduleCustomReminderDate(memo.id, at)
+                                    },
+                                )
+                            }
 
-                        state.restaurantMemo?.let { restaurantMemo ->
-                            RestaurantSection(
-                                restaurantMemo = restaurantMemo,
-                                onLocationReminderChange = { restaurantMemoId, enabled, radiusMeters ->
-                                    if (enabled && !onRequestFineLocationPermission()) return@RestaurantSection
-                                    viewModel.setRestaurantLocationReminderEnabled(
-                                        restaurantMemoId = restaurantMemoId,
-                                        enabled = enabled,
-                                        radiusMeters = radiusMeters,
-                                    )
-                                },
-                            )
+                            state.restaurantMemo?.let { restaurantMemo ->
+                                RestaurantSection(
+                                    restaurantMemo = restaurantMemo,
+                                    onLocationReminderChange = { restaurantMemoId, enabled, radiusMeters ->
+                                        if (enabled && !onRequestFineLocationPermission()) return@RestaurantSection
+                                        viewModel.setRestaurantLocationReminderEnabled(
+                                            restaurantMemoId = restaurantMemoId,
+                                            enabled = enabled,
+                                            radiusMeters = radiusMeters,
+                                        )
+                                    },
+                                )
+                            }
                         }
                     }
                 }
@@ -241,6 +248,38 @@ fun MemoDetailRoute(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SaveMemoButton(onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = CaptureInk,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 13.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Check,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = Color.White,
+            )
+            Text(
+                text = "메모 저장하기",
+                modifier = Modifier.padding(start = 6.dp),
+                color = Color.White,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+            )
         }
     }
 }
