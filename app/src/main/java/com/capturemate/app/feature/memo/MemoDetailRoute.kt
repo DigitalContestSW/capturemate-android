@@ -7,6 +7,12 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -32,6 +38,7 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.Button
@@ -40,6 +47,7 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -64,6 +72,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.capturemate.app.data.local.entity.LifeInfoItemEntity
 import com.capturemate.app.data.local.entity.ScheduleItemEntity
@@ -84,6 +94,7 @@ import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.delay
 
 private val reviewDayOptions = listOf(3, 7, 14, 30)
 private val NaverMapButtonBackground = Color(0xFFE8F8EE)
@@ -883,6 +894,8 @@ private fun ReminderPickerCard(initialDate: Long?, onSetCustomReminderDate: (Lon
 
 @Composable
 private fun ScreenshotStrip(screenshotUris: List<String>) {
+    var expandedScreenshotUri by remember { mutableStateOf<String?>(null) }
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -903,21 +916,30 @@ private fun ScreenshotStrip(screenshotUris: List<String>) {
                     ScreenshotPreview(
                         uri = uri,
                         label = "${index + 1}/${screenshotUris.size}",
+                        onClick = { expandedScreenshotUri = uri },
                     )
                 }
             }
         }
     }
+
+    expandedScreenshotUri?.let { uri ->
+        ExpandedScreenshotDialog(
+            uri = uri,
+            onDismiss = { expandedScreenshotUri = null },
+        )
+    }
 }
 
 @Composable
-private fun ScreenshotPreview(uri: String?, label: String) {
+private fun ScreenshotPreview(uri: String?, label: String, onClick: () -> Unit) {
     val bitmap = rememberLocalBitmap(uri)
 
     Box(
         modifier = Modifier
             .size(100.dp)
-            .background(CaptureMuted, RoundedCornerShape(16.dp)),
+            .background(CaptureMuted, RoundedCornerShape(16.dp))
+            .clickable(enabled = bitmap != null, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         if (bitmap != null) {
@@ -944,6 +966,78 @@ private fun ScreenshotPreview(uri: String?, label: String) {
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
             )
+        }
+    }
+}
+
+@Composable
+private fun ExpandedScreenshotDialog(uri: String, onDismiss: () -> Unit) {
+    val bitmap = rememberLocalBitmap(uri)
+    var isVisible by remember { mutableStateOf(false) }
+    var closeRequested by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        isVisible = true
+    }
+
+    LaunchedEffect(closeRequested) {
+        if (closeRequested) {
+            isVisible = false
+            delay(180)
+            onDismiss()
+        }
+    }
+
+    Dialog(
+        onDismissRequest = { closeRequested = true },
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.92f))
+                .clickable { closeRequested = true }
+                .padding(20.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            AnimatedVisibility(
+                visible = isVisible,
+                enter = fadeIn(animationSpec = tween(140)) + scaleIn(
+                    initialScale = 0.96f,
+                    animationSpec = tween(140),
+                ),
+                exit = fadeOut(animationSpec = tween(180)) + scaleOut(
+                    targetScale = 0.82f,
+                    animationSpec = tween(180),
+                ),
+            ) {
+                if (bitmap != null) {
+                    Image(
+                        bitmap = bitmap,
+                        contentDescription = "확대된 원본 스크린샷",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Fit,
+                    )
+                } else {
+                    Text(
+                        text = "이미지를 불러오는 중",
+                        color = CaptureSurface,
+                        fontSize = 14.sp,
+                    )
+                }
+            }
+            IconButton(
+                onClick = { closeRequested = true },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .background(Color.Black.copy(alpha = 0.48f), CircleShape),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = "확대 보기 닫기",
+                    tint = CaptureSurface,
+                )
+            }
         }
     }
 }
