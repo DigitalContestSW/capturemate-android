@@ -79,6 +79,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.capturemate.app.BuildConfig
 import com.capturemate.app.core.notification.NotificationScheduler
 import com.capturemate.app.data.local.entity.LifeInfoItemEntity
+import com.capturemate.app.data.local.entity.RestaurantRecommendedActionEntity
 import com.capturemate.app.data.local.entity.ScheduleItemEntity
 import com.capturemate.app.data.local.entity.StudyItemEntity
 import com.capturemate.app.domain.model.MemoStatus
@@ -189,6 +190,10 @@ fun MemoDetailRoute(
                             category = memo.category,
                             summary = memo.summary,
                             recommendedAction = memo.recommendedAction,
+                            restaurantRecommendedActions = state.restaurantMemo
+                                ?.recommendedActions
+                                .orEmpty()
+                                .take(3),
                         )
 
                         if (isPendingMemo) {
@@ -367,7 +372,12 @@ private fun MemoMenuSheet(onDismiss: () -> Unit, onDelete: () -> Unit) {
 }
 
 @Composable
-private fun AiSummaryCard(category: String, summary: String, recommendedAction: String?) {
+private fun AiSummaryCard(
+    category: String,
+    summary: String,
+    recommendedAction: String?,
+    restaurantRecommendedActions: List<RestaurantRecommendedActionEntity>,
+) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -430,7 +440,8 @@ private fun AiSummaryCard(category: String, summary: String, recommendedAction: 
                 fontWeight = FontWeight.SemiBold,
             )
 
-            recommendedAction?.let { action ->
+            val hasRestaurantActions = restaurantRecommendedActions.isNotEmpty()
+            if (hasRestaurantActions || recommendedAction != null) {
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -440,13 +451,56 @@ private fun AiSummaryCard(category: String, summary: String, recommendedAction: 
                 ) {
                     Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
                         Text(text = "추천 액션", color = CaptureMutedForeground, fontSize = 11.sp)
-                        Text(
-                            text = action,
-                            modifier = Modifier.padding(top = 2.dp),
-                            color = CaptureInk,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                        )
+                        if (hasRestaurantActions) {
+                            restaurantRecommendedActions.forEachIndexed { index, action ->
+                                Row(
+                                    modifier = Modifier.padding(top = 8.dp),
+                                    verticalAlignment = Alignment.Top,
+                                ) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = CaptureSurface,
+                                        border = BorderStroke(1.dp, CaptureBorder),
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.size(20.dp),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            Text(
+                                                text = "${index + 1}",
+                                                color = CaptureMutedForeground,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                            )
+                                        }
+                                    }
+                                    Column(modifier = Modifier.padding(start = 8.dp)) {
+                                        Text(
+                                            text = action.title,
+                                            color = CaptureInk,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                        )
+                                        action.description?.takeIf { it.isNotBlank() }?.let { description ->
+                                            Text(
+                                                text = description,
+                                                modifier = Modifier.padding(top = 2.dp),
+                                                color = CaptureMutedForeground,
+                                                fontSize = 12.sp,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            Text(
+                                text = recommendedAction.orEmpty(),
+                                modifier = Modifier.padding(top = 2.dp),
+                                color = CaptureInk,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
                     }
                 }
             }
