@@ -29,6 +29,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -1051,7 +1053,7 @@ private fun ReminderPickerCard(initialDate: Long?, onSetCustomReminderDate: (Lon
 
 @Composable
 private fun ScreenshotStrip(screenshotUris: List<String>) {
-    var expandedScreenshotUri by remember { mutableStateOf<String?>(null) }
+    var expandedScreenshotIndex by remember { mutableStateOf<Int?>(null) }
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -1073,17 +1075,18 @@ private fun ScreenshotStrip(screenshotUris: List<String>) {
                     ScreenshotPreview(
                         uri = uri,
                         label = "${index + 1}/${screenshotUris.size}",
-                        onClick = { expandedScreenshotUri = uri },
+                        onClick = { expandedScreenshotIndex = index },
                     )
                 }
             }
         }
     }
 
-    expandedScreenshotUri?.let { uri ->
+    expandedScreenshotIndex?.let { index ->
         ExpandedScreenshotDialog(
-            uri = uri,
-            onDismiss = { expandedScreenshotUri = null },
+            screenshotUris = screenshotUris,
+            initialIndex = index,
+            onDismiss = { expandedScreenshotIndex = null },
         )
     }
 }
@@ -1128,8 +1131,15 @@ private fun ScreenshotPreview(uri: String?, label: String, onClick: () -> Unit) 
 }
 
 @Composable
-private fun ExpandedScreenshotDialog(uri: String, onDismiss: () -> Unit) {
-    val bitmap = rememberLocalBitmap(uri)
+private fun ExpandedScreenshotDialog(
+    screenshotUris: List<String>,
+    initialIndex: Int,
+    onDismiss: () -> Unit,
+) {
+    val pagerState = rememberPagerState(
+        initialPage = initialIndex.coerceIn(screenshotUris.indices),
+        pageCount = { screenshotUris.size },
+    )
     var isVisible by remember { mutableStateOf(false) }
     var closeRequested by remember { mutableStateOf(false) }
 
@@ -1168,18 +1178,46 @@ private fun ExpandedScreenshotDialog(uri: String, onDismiss: () -> Unit) {
                     animationSpec = tween(180),
                 ),
             ) {
-                if (bitmap != null) {
-                    Image(
-                        bitmap = bitmap,
-                        contentDescription = "확대된 원본 스크린샷",
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxSize(),
+                ) { page ->
+                    val bitmap = rememberLocalBitmap(screenshotUris[page])
+                    Box(
                         modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Fit,
-                    )
-                } else {
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (bitmap != null) {
+                            Image(
+                                bitmap = bitmap,
+                                contentDescription = "확대된 원본 스크린샷 ${page + 1}/${screenshotUris.size}",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Fit,
+                            )
+                        } else {
+                            Text(
+                                text = "이미지를 불러오는 중",
+                                color = CaptureSurface,
+                                fontSize = 14.sp,
+                            )
+                        }
+                    }
+                }
+            }
+            if (screenshotUris.size > 1) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 4.dp),
+                    color = Color.Black.copy(alpha = 0.48f),
+                    shape = RoundedCornerShape(999.dp),
+                ) {
                     Text(
-                        text = "이미지를 불러오는 중",
+                        text = "${pagerState.currentPage + 1} / ${screenshotUris.size}",
                         color = CaptureSurface,
-                        fontSize = 14.sp,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                     )
                 }
             }
