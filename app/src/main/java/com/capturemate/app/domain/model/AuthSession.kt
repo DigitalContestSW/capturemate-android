@@ -2,8 +2,10 @@ package com.capturemate.app.domain.model
 
 data class AuthSession(
     val provider: String,
-    val providerIdToken: String?,
-    val providerAccessToken: String?,
-    val providerRefreshToken: String?,
+    val tokenType: String,
+    val accessToken: String?,
+    val refreshToken: String?,
+    val accessTokenExpiresAtMillis: Long?,
+    val refreshTokenExpiresAtMillis: Long?,
     val user: SessionUser,
 )

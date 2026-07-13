@@ -3,6 +3,9 @@ package com.capturemate.app.data.repository
 import android.content.Context
 import com.capturemate.app.core.auth.GoogleSignInClient
 import com.capturemate.app.data.local.AuthSessionStore
+import com.capturemate.app.data.remote.CaptureMateAuthApi
+import com.capturemate.app.data.remote.dto.AuthTokenResponse
+import com.capturemate.app.data.remote.dto.GoogleAuthRequest
 import com.capturemate.app.domain.model.AuthSession
 import com.capturemate.app.domain.model.AuthUser
 import com.capturemate.app.domain.model.SessionUser
@@ -12,6 +15,7 @@ import kotlinx.coroutines.flow.Flow
 class DefaultAuthRepository(
     private val googleSignInClient: GoogleSignInClient,
     private val sessionStore: AuthSessionStore,
+    private val authApi: CaptureMateAuthApi,
 ) : AuthRepository {
     override fun observeSession(): Flow<AuthSession?> = sessionStore.session
     override fun observeOnboardingCompleted(): Flow<Boolean> =
@@ -19,7 +23,10 @@ class DefaultAuthRepository(
 
     override suspend fun signInWithGoogle(context: Context): AuthSession {
         val googleUser = googleSignInClient.signIn(context)
-        return googleUser.toLocalSession().also { sessionStore.save(it) }
+        val tokenResponse = authApi.authenticateWithGoogle(
+            GoogleAuthRequest(idToken = googleUser.idToken),
+        )
+        return googleUser.toSession(tokenResponse).also { sessionStore.save(it) }
     }
 
     override suspend fun completeOnboarding() {
@@ -32,12 +39,15 @@ class DefaultAuthRepository(
     }
 }
 
-private fun AuthUser.toLocalSession(): AuthSession =
-    AuthSession(
+private fun AuthUser.toSession(tokenResponse: AuthTokenResponse): AuthSession {
+    val now = System.currentTimeMillis()
+    return AuthSession(
         provider = "google",
-        providerIdToken = idToken,
-        providerAccessToken = null,
-        providerRefreshToken = null,
+        tokenType = tokenResponse.tokenType,
+        accessToken = tokenResponse.accessToken,
+        refreshToken = tokenResponse.refreshToken,
+        accessTokenExpiresAtMillis = now + tokenResponse.accessExpiresIn.secondsToMillis(),
+        refreshTokenExpiresAtMillis = tokenResponse.refreshExpiresIn?.let { now + it.secondsToMillis() },
         user = SessionUser(
             id = id,
             email = id,
@@ -45,3 +55,7 @@ private fun AuthUser.toLocalSession(): AuthSession =
             profileImageUrl = profilePictureUri?.toString(),
         ),
     )
+}
+
+private fun Long.secondsToMillis(): Long =
+    this * 1_000L
