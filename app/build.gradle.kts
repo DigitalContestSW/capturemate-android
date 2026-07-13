@@ -31,9 +31,20 @@ val legacyNaverMapClientId = providers.gradleProperty("NAVER_MAP_CLIENT_ID")
 
 val naverMapNcpKeyId = configuredNaverMapNcpKeyId.ifBlank { legacyNaverMapClientId }
 
-val captureMateAiBaseUrl = providers.gradleProperty("CAPTUREMATE_AI_BASE_URL")
+val captureMateAiDebugBaseUrl = providers.gradleProperty("CAPTUREMATE_AI_DEBUG_BASE_URL")
     .orElse(providers.environmentVariable("CAPTUREMATE_AI_BASE_URL"))
     .orElse(localProperties.getProperty("CAPTUREMATE_AI_BASE_URL", "http://10.0.2.2:8001/"))
+    .get()
+    .let { value -> if (value.endsWith("/")) value else "$value/" }
+
+val captureMateAiReleaseBaseUrl = providers.gradleProperty("CAPTUREMATE_AI_RELEASE_BASE_URL")
+    .orElse(providers.environmentVariable("CAPTUREMATE_AI_RELEASE_BASE_URL"))
+    .orElse(
+        localProperties.getProperty(
+            "CAPTUREMATE_AI_RELEASE_BASE_URL",
+            "https://76cyhtwqf6.execute-api.ap-northeast-2.amazonaws.com/",
+        ),
+    )
     .get()
     .let { value -> if (value.endsWith("/")) value else "$value/" }
 
@@ -56,14 +67,18 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField("String", "CAPTUREMATE_AI_BASE_URL", captureMateAiBaseUrl.asBuildConfigString())
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", googleWebClientId.asBuildConfigString())
         buildConfigField("String", "NAVER_MAP_NCP_KEY_ID", naverMapNcpKeyId.asBuildConfigString())
         manifestPlaceholders["NAVER_MAP_NCP_KEY_ID"] = naverMapNcpKeyId
     }
 
     buildTypes {
+        debug {
+            buildConfigField("String", "CAPTUREMATE_AI_BASE_URL", captureMateAiDebugBaseUrl.asBuildConfigString())
+        }
+
         release {
+            buildConfigField("String", "CAPTUREMATE_AI_BASE_URL", captureMateAiReleaseBaseUrl.asBuildConfigString())
             optimization {
                 enable = false
             }

@@ -56,19 +56,28 @@ GOOGLE_WEB_CLIENT_ID=Google Cloud Console에서 발급한 Web client ID
 
 `local.properties`는 커밋하지 않습니다.
 
-Google 로그인은 AndroidX Credential Manager를 사용합니다. `GOOGLE_WEB_CLIENT_ID`에는 Android OAuth client ID가 아니라 Google ID token 발급에 사용할 Web client ID를 넣습니다. 이 값은 Gradle property, 환경변수, `local.properties` 순서로 읽습니다.
+Google 로그인은 AndroidX Credential Manager를 사용합니다. `GOOGLE_WEB_CLIENT_ID`에는 Android OAuth client ID가 아니라 Google ID token 발급에 사용할 Web client ID를 넣습니다. 이 값은 백엔드의 `GOOGLE_WEB_CLIENT_ID`와 같아야 하며, Gradle property, 환경변수, `local.properties` 순서로 읽습니다.
 
-앱은 Google 로그인 결과를 직접 소비합니다. Google ID token과 사용자 기본 정보는 `EncryptedSharedPreferences`에 저장하고, 로그인 상태는 앱 내부 state로 관리합니다. 별도 인증 서버 없이 기기 안에서 로그인 상태를 유지하는 구조입니다.
+앱은 Google 로그인으로 받은 ID token을 백엔드 `/v1/auth/google`로 교환하고, 발급된 JWT 세션을 `EncryptedSharedPreferences`에 저장합니다.
 
 ## AI 서버 연동
 
-앱은 기본적으로 로컬 AI 서버를 호출하도록 설정되어 있습니다.
+debug 빌드는 기본적으로 로컬 AI 서버를 호출하도록 설정되어 있습니다.
 
 ```text
 http://10.0.2.2:8001/
 ```
 
 안드로이드 에뮬레이터에서 `10.0.2.2`는 개발 PC의 `localhost`를 의미합니다. 실제 기기에서 테스트할 때는 같은 네트워크에 있는 개발 PC의 IP 주소로 바꿔야 합니다.
+debug 서버 주소는 `CAPTUREMATE_AI_DEBUG_BASE_URL` 또는 기존 `CAPTUREMATE_AI_BASE_URL`로 바꿀 수 있습니다.
+
+release 빌드는 기본적으로 API Gateway HTTPS 주소를 사용합니다.
+
+```text
+https://76cyhtwqf6.execute-api.ap-northeast-2.amazonaws.com/
+```
+
+release 서버 주소는 `CAPTUREMATE_AI_RELEASE_BASE_URL`로 override할 수 있습니다.
 
 AI 서버 실행은 `capturemate-ai` 저장소에서 진행합니다.
 
