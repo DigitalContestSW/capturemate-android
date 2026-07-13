@@ -1,6 +1,7 @@
 ﻿package com.capturemate.app.feature.restaurant
 
 import com.capturemate.app.data.local.entity.RestaurantGroupEntity
+import com.capturemate.app.data.local.entity.RestaurantGroupMemberEntity
 import com.capturemate.app.data.local.entity.RestaurantMemoEntity
 import com.capturemate.app.domain.model.RestaurantGroup
 import com.capturemate.app.domain.model.RestaurantMemo
@@ -13,6 +14,7 @@ data class RestaurantDetailUiState(
 data class RestaurantMapUiState(
     val restaurants: List<RestaurantMemoEntity> = emptyList(),
     val visibleGroups: List<RestaurantGroupEntity> = emptyList(),
+    val groupMembers: List<RestaurantGroupMemberEntity> = emptyList(),
     val groupedRestaurantIds: Set<String> = emptySet(),
     val isDebugAnalyzing: Boolean = false,
     val debugErrorMessage: String? = null,

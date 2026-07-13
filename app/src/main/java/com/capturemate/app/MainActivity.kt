@@ -59,7 +59,6 @@ import com.capturemate.app.feature.home.SettingsRoute
 import com.capturemate.app.feature.memo.MemoDetailRoute
 import com.capturemate.app.feature.memo.MemoListRoute
 import com.capturemate.app.feature.memo.RemindersRoute
-import com.capturemate.app.feature.restaurant.RestaurantGroupDetailRoute
 import com.capturemate.app.feature.restaurant.RestaurantMapRoute
 import com.capturemate.app.ui.theme.CaptureBorder
 import com.capturemate.app.ui.theme.CaptureInk
@@ -118,7 +117,6 @@ class MainActivity : FragmentActivity() {
                 val homeUiState by homeViewModel.uiState.collectAsState()
                 val session = homeUiState.session
                 var selectedMemoId by remember { mutableStateOf(pendingMemoIdFromNotification) }
-                var selectedRestaurantGroupId by remember { mutableStateOf<String?>(null) }
                 var showRestaurantMap by remember { mutableStateOf(false) }
                 var showReminders by remember { mutableStateOf(false) }
                 var selectedTab by remember { mutableStateOf(Tab.Home) }
@@ -129,8 +127,6 @@ class MainActivity : FragmentActivity() {
                 }
 
                 val memoId = selectedMemoId
-                val restaurantGroupId = selectedRestaurantGroupId
-
                 when {
                     !homeUiState.isSessionLoaded -> {
                         Box(modifier = Modifier.fillMaxWidth())
@@ -167,21 +163,12 @@ class MainActivity : FragmentActivity() {
                         )
                     }
 
-                    restaurantGroupId != null -> {
-                        BackHandler { selectedRestaurantGroupId = null }
-                        RestaurantGroupDetailRoute(
-                            groupId = restaurantGroupId,
-                            repository = repository,
-                            onRestaurantClick = { selectedMemoId = it },
-                        )
-                    }
-
                     showRestaurantMap -> {
                         BackHandler { showRestaurantMap = false }
                         RestaurantMapRoute(
                             repository = repository,
                             onRestaurantClick = { selectedMemoId = it },
-                            onGroupClick = { selectedRestaurantGroupId = it },
+                            onGroupClick = { showRestaurantMap = false },
                         )
                     }
 
@@ -243,8 +230,6 @@ class MainActivity : FragmentActivity() {
                                     Tab.MemoList -> MemoListRoute(
                                         repository = repository,
                                         onMemoClick = { selectedMemoId = it },
-                                        onOpenRestaurantMap = { showRestaurantMap = true },
-                                        onRestaurantGroupClick = { selectedRestaurantGroupId = it },
                                         activeCategory = memoListActiveCategory,
                                         onActiveCategoryChange = { memoListActiveCategory = it },
                                     )

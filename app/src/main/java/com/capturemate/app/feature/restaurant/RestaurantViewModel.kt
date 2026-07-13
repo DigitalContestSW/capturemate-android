@@ -39,6 +39,7 @@ class RestaurantViewModel(
                 _mapState.value = _mapState.value.copy(
                     restaurants = state.restaurants,
                     visibleGroups = state.groups.filter { it.id in visibleGroupIds },
+                    groupMembers = state.groupMembers.filter { it.groupId in visibleGroupIds },
                     groupedRestaurantIds = groupedRestaurantIds,
                     isLoading = false,
                 )
