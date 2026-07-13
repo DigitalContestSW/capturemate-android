@@ -704,12 +704,15 @@ class DefaultCaptureRepository(
         now: Long,
     ): String {
         val restaurant = detail.restaurant
-        val restaurantMemoId = UUID.randomUUID().toString()
+        val restaurantMemoId = memo.id
         val restaurantName = restaurant.name?.takeIf { it.isNotBlank() } ?: memo.title
-        val neighborhood = restaurant.neighborhood
-            ?: extractNeighborhood(restaurant.address)
-            ?: extractNeighborhood(restaurant.roadAddress)
-        // 서버/LLM의 임의 id 대신 동네명으로 정규화해 같은 동네를 항상 같은 그룹에 넣는다.
+        val neighborhood = normalizeNeighborhood(restaurant.neighborhood)
+            ?: normalizeNeighborhood(extractNeighborhood(restaurant.address))
+            ?: normalizeNeighborhood(extractNeighborhood(restaurant.roadAddress))
+        // memo.id를 식별자로 써서 같은 장소/같은 주제가 다시 들어오면 하나의 상세 메모로 덮어쓴다.
+        val existingRestaurant = restaurantMemoDao.getRestaurantMemo(restaurantMemoId)
+        val mergedScreenshotUris = (screenshotUris + (existingRestaurant?.screenshotUris.orEmpty()))
+            .distinct()
 
         val restaurantEntity = RestaurantMemoEntity(
             id = restaurantMemoId,
@@ -728,7 +731,7 @@ class DefaultCaptureRepository(
             estimatedPricePerPersonMax = restaurant.estimatedPricePerPersonMax,
             confidence = detail.confidence,
             needsUserReview = detail.needsUserReview,
-            screenshotUris = screenshotUris,
+            screenshotUris = mergedScreenshotUris,
             createdAt = now,
             updatedAt = now,
         )
@@ -805,6 +808,11 @@ class DefaultCaptureRepository(
                 token.endsWith("동") || token.endsWith("가") || token.endsWith("읍") ||
                     token.endsWith("면") || token.endsWith("리")
             }
+    }
+
+    private fun normalizeNeighborhood(value: String?): String? {
+        if (value.isNullOrBlank()) return null
+        return value.replace(Regex("\\d+(?=(동|가|읍|면|리)$)"), "").trim().ifBlank { null }
     }
 
     private fun slugify(value: String): String =
