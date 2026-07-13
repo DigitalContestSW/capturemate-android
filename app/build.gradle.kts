@@ -42,7 +42,7 @@ val captureMateAiReleaseBaseUrl = providers.gradleProperty("CAPTUREMATE_AI_RELEA
     .orElse(
         localProperties.getProperty(
             "CAPTUREMATE_AI_RELEASE_BASE_URL",
-            "https://76cyhtwqf6.execute-api.ap-northeast-2.amazonaws.com/",
+            "https://api.cloudnetaaws.click/",
         ),
     )
     .get()
