@@ -22,12 +22,19 @@ class AuthSessionStore(
     val session: Flow<AuthSession?> = sessionState.asStateFlow()
     val onboardingCompleted: Flow<Boolean> = onboardingCompletedState.asStateFlow()
 
+    fun currentSession(): AuthSession? = sessionState.value
+
     suspend fun save(session: AuthSession) {
         preferences.edit()
             .putString(PROVIDER, session.provider)
-            .putString(PROVIDER_ID_TOKEN, session.providerIdToken)
-            .putString(PROVIDER_ACCESS_TOKEN, session.providerAccessToken)
-            .putString(PROVIDER_REFRESH_TOKEN, session.providerRefreshToken)
+            .putString(TOKEN_TYPE, session.tokenType)
+            .putString(ACCESS_TOKEN, session.accessToken)
+            .putString(REFRESH_TOKEN, session.refreshToken)
+            .putLongOrRemove(ACCESS_TOKEN_EXPIRES_AT_MILLIS, session.accessTokenExpiresAtMillis)
+            .putLongOrRemove(REFRESH_TOKEN_EXPIRES_AT_MILLIS, session.refreshTokenExpiresAtMillis)
+            .remove(PROVIDER_ID_TOKEN)
+            .remove(PROVIDER_ACCESS_TOKEN)
+            .remove(PROVIDER_REFRESH_TOKEN)
             .putString(USER_ID, session.user.id)
             .putString(USER_EMAIL, session.user.email)
             .putString(USER_NAME, session.user.name)
@@ -39,13 +46,18 @@ class AuthSessionStore(
     suspend fun clear() {
         preferences.edit()
             .remove(PROVIDER)
-            .remove(PROVIDER_ID_TOKEN)
-            .remove(PROVIDER_ACCESS_TOKEN)
-            .remove(PROVIDER_REFRESH_TOKEN)
+            .remove(TOKEN_TYPE)
+            .remove(ACCESS_TOKEN)
+            .remove(REFRESH_TOKEN)
+            .remove(ACCESS_TOKEN_EXPIRES_AT_MILLIS)
+            .remove(REFRESH_TOKEN_EXPIRES_AT_MILLIS)
             .remove(USER_ID)
             .remove(USER_EMAIL)
             .remove(USER_NAME)
             .remove(USER_PROFILE_IMAGE_URL)
+            .remove(PROVIDER_ID_TOKEN)
+            .remove(PROVIDER_ACCESS_TOKEN)
+            .remove(PROVIDER_REFRESH_TOKEN)
             .apply()
         sessionState.value = null
     }
@@ -71,9 +83,11 @@ class AuthSessionStore(
         } else {
             AuthSession(
                 provider = provider,
-                providerIdToken = preferences.getString(PROVIDER_ID_TOKEN, null),
-                providerAccessToken = preferences.getString(PROVIDER_ACCESS_TOKEN, null),
-                providerRefreshToken = preferences.getString(PROVIDER_REFRESH_TOKEN, null),
+                tokenType = preferences.getString(TOKEN_TYPE, null)?.takeIf { it.isNotBlank() } ?: "Bearer",
+                accessToken = preferences.getString(ACCESS_TOKEN, null),
+                refreshToken = preferences.getString(REFRESH_TOKEN, null),
+                accessTokenExpiresAtMillis = preferences.getLongOrNull(ACCESS_TOKEN_EXPIRES_AT_MILLIS),
+                refreshTokenExpiresAtMillis = preferences.getLongOrNull(REFRESH_TOKEN_EXPIRES_AT_MILLIS),
                 user = SessionUser(
                     id = userId,
                     email = email,
@@ -87,25 +101,28 @@ class AuthSessionStore(
     private fun readOnboardingCompleted(): Boolean =
         preferences.getBoolean(ONBOARDING_COMPLETED, false)
 
-    private fun createPreferences(context: Context): SharedPreferences =
-        runCatching {
-            val masterKey = MasterKey.Builder(context)
-                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                .build()
+    private fun createPreferences(context: Context): SharedPreferences {
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
 
-            EncryptedSharedPreferences.create(
-                context,
-                "auth_session",
-                masterKey,
-                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-            )
-        }.getOrElse {
-            context.getSharedPreferences("auth_session_fallback", Context.MODE_PRIVATE)
-        }
+        return EncryptedSharedPreferences.create(
+            context,
+            AUTH_SESSION_PREFS_NAME,
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+        )
+    }
 
     private companion object {
+        const val AUTH_SESSION_PREFS_NAME = "auth_session"
         const val PROVIDER = "provider"
+        const val TOKEN_TYPE = "token_type"
+        const val ACCESS_TOKEN = "access_token"
+        const val REFRESH_TOKEN = "refresh_token"
+        const val ACCESS_TOKEN_EXPIRES_AT_MILLIS = "access_token_expires_at_millis"
+        const val REFRESH_TOKEN_EXPIRES_AT_MILLIS = "refresh_token_expires_at_millis"
         const val PROVIDER_ID_TOKEN = "provider_id_token"
         const val PROVIDER_ACCESS_TOKEN = "provider_access_token"
         const val PROVIDER_REFRESH_TOKEN = "provider_refresh_token"
@@ -116,3 +133,9 @@ class AuthSessionStore(
         const val ONBOARDING_COMPLETED = "onboarding_completed"
     }
 }
+
+private fun SharedPreferences.Editor.putLongOrRemove(key: String, value: Long?): SharedPreferences.Editor =
+    if (value == null) remove(key) else putLong(key, value)
+
+private fun SharedPreferences.getLongOrNull(key: String): Long? =
+    if (contains(key)) getLong(key, 0L) else null

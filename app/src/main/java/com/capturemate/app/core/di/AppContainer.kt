@@ -17,7 +17,9 @@ import com.capturemate.app.data.local.CaptureMateDatabase.Companion.MIGRATION_4_
 import com.capturemate.app.data.local.CaptureMateDatabase.Companion.MIGRATION_5_6
 import com.capturemate.app.data.local.CaptureMateDatabase.Companion.MIGRATION_6_7
 import com.capturemate.app.data.local.CaptureMateDatabase.Companion.MIGRATION_7_8
+import com.capturemate.app.data.remote.BackendAuthInterceptor
 import com.capturemate.app.data.remote.CaptureMateApi
+import com.capturemate.app.data.remote.CaptureMateAuthApi
 import com.capturemate.app.data.repository.DefaultAuthRepository
 import com.capturemate.app.data.repository.DefaultCaptureRepository
 import com.capturemate.app.domain.repository.AuthRepository
@@ -74,6 +76,7 @@ class AppContainer(context: Context) {
         DefaultAuthRepository(
             googleSignInClient = googleSignInClient,
             sessionStore = authSessionStore,
+            authApi = captureMateAuthApi,
         )
     }
 
@@ -84,7 +87,7 @@ class AppContainer(context: Context) {
         }
     }
 
-    private val okHttpClient: OkHttpClient by lazy {
+    private val loggingInterceptor: HttpLoggingInterceptor by lazy {
         val logging = HttpLoggingInterceptor().apply {
             level = if (BuildConfig.DEBUG) {
                 HttpLoggingInterceptor.Level.BASIC
@@ -92,13 +95,31 @@ class AppContainer(context: Context) {
                 HttpLoggingInterceptor.Level.NONE
             }
         }
+        logging
+    }
 
+    private fun newBackendHttpClientBuilder(): OkHttpClient.Builder =
         OkHttpClient.Builder()
-            .addInterceptor(logging)
             .connectTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(0, TimeUnit.SECONDS)
             .readTimeout(0, TimeUnit.SECONDS)
             .callTimeout(0, TimeUnit.SECONDS)
+
+    private val authlessOkHttpClient: OkHttpClient by lazy {
+        newBackendHttpClientBuilder()
+            .addInterceptor(loggingInterceptor)
+            .build()
+    }
+
+    private val okHttpClient: OkHttpClient by lazy {
+        newBackendHttpClientBuilder()
+            .addInterceptor(
+                BackendAuthInterceptor(
+                    sessionStore = authSessionStore,
+                    authApi = captureMateAuthApi,
+                ),
+            )
+            .addInterceptor(loggingInterceptor)
             .build()
     }
 
@@ -111,6 +132,15 @@ class AppContainer(context: Context) {
 
     private val restaurantGeofenceManager: RestaurantGeofenceManager by lazy {
         RestaurantGeofenceManager(appContext)
+    }
+
+    private val captureMateAuthApi: CaptureMateAuthApi by lazy {
+        Retrofit.Builder()
+            .baseUrl(BuildConfig.CAPTUREMATE_AI_BASE_URL)
+            .client(authlessOkHttpClient)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+            .create(CaptureMateAuthApi::class.java)
     }
 
     val captureMateApi: CaptureMateApi by lazy {
