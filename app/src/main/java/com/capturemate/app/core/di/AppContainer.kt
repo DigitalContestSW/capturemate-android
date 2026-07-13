@@ -16,6 +16,7 @@ import com.capturemate.app.data.local.CaptureMateDatabase.Companion.MIGRATION_3_
 import com.capturemate.app.data.local.CaptureMateDatabase.Companion.MIGRATION_4_5
 import com.capturemate.app.data.local.CaptureMateDatabase.Companion.MIGRATION_5_6
 import com.capturemate.app.data.local.CaptureMateDatabase.Companion.MIGRATION_6_7
+import com.capturemate.app.data.local.CaptureMateDatabase.Companion.MIGRATION_7_8
 import com.capturemate.app.data.remote.BackendAuthInterceptor
 import com.capturemate.app.data.remote.CaptureMateApi
 import com.capturemate.app.data.remote.CaptureMateAuthApi
@@ -53,6 +54,7 @@ class AppContainer(context: Context) {
                 MIGRATION_4_5,
                 MIGRATION_5_6,
                 MIGRATION_6_7,
+                MIGRATION_7_8,
             )
         }
 

@@ -178,6 +178,10 @@ fun MemoDetailRoute(
                         val studyItem = state.studyItem
                         val lifeInfoItem = state.lifeInfoItem
                         val capture = state.capture
+                        val restaurantScreenshotUris = state.restaurantMemo
+                            ?.restaurant
+                            ?.screenshotUris
+                            .orEmpty()
                         when {
                             scheduleItem != null && scheduleItem.screenshotUris.isNotEmpty() ->
                                 ScreenshotStrip(screenshotUris = scheduleItem.screenshotUris)
@@ -185,6 +189,8 @@ fun MemoDetailRoute(
                                 ScreenshotStrip(screenshotUris = studyItem.screenshotUris)
                             lifeInfoItem != null && lifeInfoItem.screenshotUris.isNotEmpty() ->
                                 ScreenshotStrip(screenshotUris = lifeInfoItem.screenshotUris)
+                            restaurantScreenshotUris.isNotEmpty() ->
+                                ScreenshotStrip(screenshotUris = restaurantScreenshotUris)
                             capture != null -> ScreenshotStrip(screenshotUris = listOf(capture.localImageUri))
                         }
 

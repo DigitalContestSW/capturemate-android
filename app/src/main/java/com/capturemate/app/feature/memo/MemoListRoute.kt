@@ -63,6 +63,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.capturemate.app.data.local.entity.MemoEntity
+import com.capturemate.app.data.local.entity.RestaurantGroupEntity
+import com.capturemate.app.data.local.entity.RestaurantGroupMemberEntity
+import com.capturemate.app.data.local.entity.RestaurantMemoEntity
 import com.capturemate.app.domain.model.normalizeCaptureCategory
 import com.capturemate.app.domain.repository.CaptureRepository
 import com.capturemate.app.feature.common.categoryIcon
@@ -102,7 +105,6 @@ private val CATEGORY_ORDER = listOf("Schedule", "Study", "LifeInfo", "Restaurant
 fun MemoListRoute(
     repository: CaptureRepository,
     onMemoClick: (String) -> Unit,
-    onOpenRestaurantMap: () -> Unit,
     activeCategory: String = CATEGORY_ALL,
     onActiveCategoryChange: (String) -> Unit = {},
     viewModel: MemoViewModel = viewModel(factory = MemoViewModel.Factory(repository)),
@@ -114,6 +116,7 @@ fun MemoListRoute(
     var status by remember { mutableStateOf(StatusFilter.All) }
     var isGrid by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
+    var selectedRestaurantGroupId by remember { mutableStateOf<String?>(null) }
 
     val filtered = remember(state.memos, state.itemInfo, activeCategory, sort, status) {
         val byCategory = if (activeCategory == CATEGORY_ALL) {
@@ -137,7 +140,30 @@ fun MemoListRoute(
     val weekAgoMillis = remember { System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000 }
     val weekCount = remember(state.memos) { state.memos.count { it.createdAt > weekAgoMillis } }
     val isRestaurantCategory = activeCategory == "Restaurant"
-    val restaurantsWithCoordinates = restaurantState.restaurants.filter {
+    val selectedRestaurantIds = remember(
+        selectedRestaurantGroupId,
+        restaurantState.groupMembers,
+    ) {
+        restaurantState.groupMembers
+            .filter { it.groupId == selectedRestaurantGroupId }
+            .mapTo(mutableSetOf()) { it.restaurantMemoId }
+    }
+    val selectedMemoIds = remember(selectedRestaurantIds, restaurantState.restaurants) {
+        restaurantState.restaurants
+            .filter { it.id in selectedRestaurantIds }
+            .mapTo(mutableSetOf()) { it.memoId }
+    }
+    val displayedMemos = if (isRestaurantCategory && selectedRestaurantGroupId != null) {
+        filtered.filter { it.id in selectedMemoIds }
+    } else {
+        filtered
+    }
+    val mapRestaurants = if (isRestaurantCategory && selectedRestaurantGroupId != null) {
+        restaurantState.restaurants.filter { it.id in selectedRestaurantIds }
+    } else {
+        restaurantState.restaurants
+    }
+    val restaurantsWithCoordinates = mapRestaurants.filter {
         it.latitude != null && it.longitude != null
     }
 
@@ -168,7 +194,7 @@ fun MemoListRoute(
                 onSortChange = { sort = it },
                 status = status,
                 onStatusChange = { status = it },
-                count = filtered.size,
+                count = displayedMemos.size,
                 isGrid = isGrid,
                 onToggleGrid = { isGrid = it },
             )
@@ -182,7 +208,7 @@ fun MemoListRoute(
                     )
                 }
 
-                filtered.isEmpty() -> {
+                displayedMemos.isEmpty() && !isRestaurantCategory -> {
                     EmptyMemoListState()
                 }
 
@@ -201,8 +227,21 @@ fun MemoListRoute(
                                     onRestaurantClick = onMemoClick,
                                 )
                             }
+                            item(span = { GridItemSpan(maxLineSpan) }) {
+                                RestaurantNeighborhoodGroupSection(
+                                    groups = restaurantState.visibleGroups,
+                                    restaurants = restaurantState.restaurants,
+                                    groupMembers = restaurantState.groupMembers,
+                                    selectedGroupId = selectedRestaurantGroupId,
+                                    onGroupClick = { groupId ->
+                                        selectedRestaurantGroupId = groupId.takeUnless {
+                                            it == selectedRestaurantGroupId
+                                        }
+                                    },
+                                )
+                            }
                         }
-                        items(items = filtered, key = { it.id }) { memo ->
+                        items(items = displayedMemos, key = { it.id }) { memo ->
                             MemoGridCard(
                                 memo = memo,
                                 info = state.itemInfo[memo.id],
@@ -225,12 +264,98 @@ fun MemoListRoute(
                                     onRestaurantClick = onMemoClick,
                                 )
                             }
+                            item {
+                                RestaurantNeighborhoodGroupSection(
+                                    groups = restaurantState.visibleGroups,
+                                    restaurants = restaurantState.restaurants,
+                                    groupMembers = restaurantState.groupMembers,
+                                    selectedGroupId = selectedRestaurantGroupId,
+                                    onGroupClick = { groupId ->
+                                        selectedRestaurantGroupId = groupId.takeUnless {
+                                            it == selectedRestaurantGroupId
+                                        }
+                                    },
+                                )
+                            }
                         }
-                        items(items = filtered, key = { it.id }) { memo ->
+                        items(items = displayedMemos, key = { it.id }) { memo ->
                             MemoListRow(
                                 memo = memo,
                                 info = state.itemInfo[memo.id],
                                 onClick = { onMemoClick(memo.id) },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RestaurantNeighborhoodGroupSection(
+    groups: List<RestaurantGroupEntity>,
+    restaurants: List<RestaurantMemoEntity>,
+    groupMembers: List<RestaurantGroupMemberEntity>,
+    selectedGroupId: String?,
+    onGroupClick: (String) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = "동네별 맛집",
+            color = CaptureInk,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        if (groups.isEmpty()) {
+            Text(
+                text = "같은 동네 맛집이 2곳 이상 모이면 그룹이 만들어져요.",
+                color = CaptureMutedForeground,
+                fontSize = 12.sp,
+            )
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                groups.forEach { group ->
+                    val memberIds = groupMembers
+                        .filter { it.groupId == group.id }
+                        .mapTo(mutableSetOf()) { it.restaurantMemoId }
+                    val groupRestaurants = restaurants.filter { it.id in memberIds }
+                    val thumbnailUri = groupRestaurants
+                        .maxByOrNull { it.createdAt }
+                        ?.screenshotUris
+                        ?.firstOrNull()
+                    val selected = selectedGroupId == group.id
+                    Surface(
+                        onClick = { onGroupClick(group.id) },
+                        shape = RoundedCornerShape(14.dp),
+                        color = if (selected) CaptureMuted else CaptureSurface,
+                        border = BorderStroke(
+                            width = if (selected) 2.dp else 1.dp,
+                            color = if (selected) CaptureInk else CaptureBorder,
+                        ),
+                    ) {
+                        Row(
+                            modifier = Modifier.width(190.dp).padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            ThumbnailBox(
+                                category = "Restaurant",
+                                thumbnailUri = thumbnailUri,
+                                modifier = Modifier.size(58.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                iconSize = 24.dp,
+                            )
+                            Text(
+                                text = group.title,
+                                modifier = Modifier.padding(start = 11.dp).weight(1f),
+                                color = CaptureInk,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
                             )
                         }
                     }

@@ -22,6 +22,7 @@ data class RestaurantMemoEntity(
     val estimatedPricePerPersonMax: Int?,
     val confidence: Double,
     val needsUserReview: Boolean,
+    val screenshotUris: List<String> = emptyList(),
     @ColumnInfo(defaultValue = "0")
     val locationReminderEnabled: Boolean = false,
     @ColumnInfo(defaultValue = "200")

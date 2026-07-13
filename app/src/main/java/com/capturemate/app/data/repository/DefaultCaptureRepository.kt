@@ -643,6 +643,7 @@ class DefaultCaptureRepository(
                     val restaurantMemoId = upsertRestaurantAnalysis(
                         memo = memo,
                         detail = detail,
+                        screenshotUris = screenshotUris,
                         now = createdAt,
                     )
                     setRestaurantLocationReminderEnabled(
@@ -699,6 +700,7 @@ class DefaultCaptureRepository(
     private suspend fun upsertRestaurantAnalysis(
         memo: MemoEntity,
         detail: RestaurantAnalysisDto,
+        screenshotUris: List<String>,
         now: Long,
     ): String {
         val restaurant = detail.restaurant
@@ -707,10 +709,7 @@ class DefaultCaptureRepository(
         val neighborhood = restaurant.neighborhood
             ?: extractNeighborhood(restaurant.address)
             ?: extractNeighborhood(restaurant.roadAddress)
-        val groupId = detail.group?.id
-            ?: neighborhood?.let { slugify("$it-restaurant") }
-        val groupTitle = detail.group?.title
-            ?: neighborhood?.let { "$it 맛집" }
+        // 서버/LLM의 임의 id 대신 동네명으로 정규화해 같은 동네를 항상 같은 그룹에 넣는다.
 
         val restaurantEntity = RestaurantMemoEntity(
             id = restaurantMemoId,
@@ -729,6 +728,7 @@ class DefaultCaptureRepository(
             estimatedPricePerPersonMax = restaurant.estimatedPricePerPersonMax,
             confidence = detail.confidence,
             needsUserReview = detail.needsUserReview,
+            screenshotUris = screenshotUris,
             createdAt = now,
             updatedAt = now,
         )
@@ -768,18 +768,16 @@ class DefaultCaptureRepository(
                 sortOrder = index,
             )
         }
-        val groupEntity = if (groupId != null && groupTitle != null && neighborhood != null) {
+        val groupEntity = neighborhood?.let { area ->
             RestaurantGroupEntity(
-                id = groupId,
-                title = groupTitle,
-                neighborhood = neighborhood,
+                id = slugify("$area-restaurant"),
+                title = "$area 맛집",
+                neighborhood = area,
                 representativeLatitude = restaurant.latitude,
                 representativeLongitude = restaurant.longitude,
                 createdAt = now,
                 updatedAt = now,
             )
-        } else {
-            null
         }
         val groupMember = groupEntity?.let {
             RestaurantGroupMemberEntity(

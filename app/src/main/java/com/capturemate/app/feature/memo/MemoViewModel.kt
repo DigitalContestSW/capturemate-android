@@ -65,25 +65,34 @@ class MemoViewModel(
     init {
         viewModelScope.launch {
             combine(
-                repository.observeMemos(),
-                repository.observeCaptures(),
+                combine(
+                    repository.observeMemos(),
+                    repository.observeCaptures(),
+                    repository.observeRestaurantMapState(),
+                ) { memos, captures, restaurantState ->
+                    Triple(memos, captures, restaurantState.restaurants)
+                },
                 repository.observeScheduleItems(),
                 repository.observeLifeInfoItems(),
                 repository.observeStudyItems(),
-            ) { memos, captures, scheduleItems, lifeInfoItems, studyItems ->
+            ) { base, scheduleItems, lifeInfoItems, studyItems ->
+                val (memos, captures, restaurants) = base
                 val captureById = captures.associateBy { it.id }
                 val scheduleByMemoId = scheduleItems.associateBy { it.memoId }
                 val lifeInfoByMemoId = lifeInfoItems.associateBy { it.memoId }
                 val studyByMemoId = studyItems.associateBy { it.memoId }
+                val restaurantByMemoId = restaurants.associateBy { it.memoId }
                 val itemInfo = memos.associate { memo ->
                     val schedule = scheduleByMemoId[memo.id]
                     val lifeInfo = lifeInfoByMemoId[memo.id]
                     val study = studyByMemoId[memo.id]
+                    val restaurant = restaurantByMemoId[memo.id]
                     val capture = memo.captureId?.let { captureById[it] }
                     val screenshotUris = when {
                         schedule != null && schedule.screenshotUris.isNotEmpty() -> schedule.screenshotUris
                         study != null && study.screenshotUris.isNotEmpty() -> study.screenshotUris
                         lifeInfo != null && lifeInfo.screenshotUris.isNotEmpty() -> lifeInfo.screenshotUris
+                        restaurant != null && restaurant.screenshotUris.isNotEmpty() -> restaurant.screenshotUris
                         else -> emptyList()
                     }
                     val thumbnailUri: String?
