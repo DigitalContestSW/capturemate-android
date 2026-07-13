@@ -71,13 +71,15 @@ http://10.0.2.2:8001/
 안드로이드 에뮬레이터에서 `10.0.2.2`는 개발 PC의 `localhost`를 의미합니다. 실제 기기에서 테스트할 때는 같은 네트워크에 있는 개발 PC의 IP 주소로 바꿔야 합니다.
 debug 서버 주소는 `CAPTUREMATE_AI_DEBUG_BASE_URL` 또는 기존 `CAPTUREMATE_AI_BASE_URL`로 바꿀 수 있습니다.
 
-release 빌드는 기본적으로 API Gateway HTTPS 주소를 사용합니다.
+release 빌드는 기본적으로 ALB custom domain HTTPS 주소를 사용합니다.
 
 ```text
-https://76cyhtwqf6.execute-api.ap-northeast-2.amazonaws.com/
+https://api.cloudnetaaws.click/
 ```
 
 release 서버 주소는 `CAPTUREMATE_AI_RELEASE_BASE_URL`로 override할 수 있습니다.
+
+API Gateway는 29~30초 timeout 때문에 최종 경로에서 제외했습니다. 최종 배포 경로는 Android -> `https://api.cloudnetaaws.click` -> ALB HTTPS:443 -> ECS Fargate:8001 입니다.
 
 AI 서버 실행은 `capturemate-ai` 저장소에서 진행합니다.
 
