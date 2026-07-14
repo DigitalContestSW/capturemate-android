@@ -2,6 +2,7 @@ package com.capturemate.app.feature.debugocr
 
 import android.Manifest
 import android.app.Application
+import android.app.PendingIntent
 import android.content.ContentResolver
 import android.content.pm.PackageManager
 import android.database.ContentObserver
@@ -61,6 +62,7 @@ data class DebugOcrUiState(
     val isAutoDetecting: Boolean = false,
     val latestScreenshots: List<ScreenshotImage> = emptyList(),
     val selectedScreenshot: ScreenshotImage? = null,
+    val selectedScreenshotUris: Set<String> = emptySet(),
     val lastUploadResult: AnalyzeUploadResult? = null,
     val processedCount: Int = 0,
     val skippedDuplicateCount: Int = 0,
@@ -125,6 +127,7 @@ class DebugOcrViewModel(
                             isBusy = false,
                             latestScreenshots = emptyList(),
                             selectedScreenshot = null,
+                            selectedScreenshotUris = emptySet(),
                             statusMessage = "Screenshots 폴더에서 이미지를 찾지 못함",
                             errorMessage = null,
                         )
@@ -133,6 +136,7 @@ class DebugOcrViewModel(
                             isBusy = false,
                             latestScreenshots = screenshots,
                             selectedScreenshot = screenshots.first(),
+                            selectedScreenshotUris = setOf(screenshots.first().uri.toString()),
                             statusMessage = "최신 스크린샷 ${screenshots.size}개 조회됨",
                             errorMessage = null,
                         )
@@ -153,9 +157,19 @@ class DebugOcrViewModel(
     fun selectScreenshot(uri: String) {
         val screenshot = uiState.value.latestScreenshots.firstOrNull { it.uri.toString() == uri } ?: return
         updateState {
+            val selectedUris = if (uri in it.selectedScreenshotUris) {
+                it.selectedScreenshotUris - uri
+            } else {
+                it.selectedScreenshotUris + uri
+            }
             it.copy(
-                selectedScreenshot = screenshot,
-                statusMessage = "스크린샷 선택됨",
+                selectedScreenshot = if (uri in selectedUris) {
+                    screenshot
+                } else {
+                    it.latestScreenshots.firstOrNull { item -> item.uri.toString() in selectedUris }
+                },
+                selectedScreenshotUris = selectedUris,
+                statusMessage = "이미지 ${selectedUris.size}개 선택됨",
                 errorMessage = null,
             )
         }
@@ -172,6 +186,90 @@ class DebugOcrViewModel(
 
         viewModelScope.launch {
             processScreenshot(screenshot = screenshot, force = true)
+        }
+    }
+
+    fun uploadSelectedScreenshots() {
+        val state = uiState.value
+        val screenshots = state.latestScreenshots.filter {
+            it.uri.toString() in state.selectedScreenshotUris
+        }
+        if (screenshots.isEmpty()) {
+            updateState { it.copy(errorMessage = "분석할 이미지를 한 장 이상 선택하세요.") }
+            return
+        }
+
+        viewModelScope.launch {
+            processScreenshots(screenshots = screenshots, force = true)
+        }
+    }
+
+    fun requestDeleteSelectedScreenshots(): PendingIntent? {
+        if (uiState.value.isBusy) return null
+        val selectedUris = uiState.value.selectedScreenshotUris
+        if (selectedUris.isEmpty()) {
+            updateState { it.copy(errorMessage = "삭제할 이미지를 한 장 이상 선택하세요.") }
+            return null
+        }
+
+        val pendingIntent = runCatching {
+            screenshotMediaStore.requestDelete(selectedUris.map(Uri::parse))
+        }.getOrElse { throwable ->
+            updateState {
+                it.copy(
+                    statusMessage = "이미지 삭제 실패",
+                    errorMessage = throwable.message ?: throwable::class.java.simpleName,
+                )
+            }
+            return null
+        }
+
+        if (pendingIntent == null) {
+            onDeleteRequestResult(approved = true)
+        } else {
+            updateState {
+                it.copy(statusMessage = "선택 이미지 삭제 확인 대기 중", errorMessage = null)
+            }
+        }
+        return pendingIntent
+    }
+
+    fun onDeleteRequestResult(approved: Boolean) {
+        if (!approved) {
+            updateState { it.copy(statusMessage = "이미지 삭제 취소됨", errorMessage = null) }
+            return
+        }
+
+        viewModelScope.launch {
+            updateState { it.copy(isBusy = true, statusMessage = "이미지 목록 갱신 중", errorMessage = null) }
+            val screenshots = runCatching {
+                withContext(Dispatchers.IO) {
+                    screenshotMediaStore.findLatestScreenshots(LATEST_SCREENSHOT_LIMIT)
+                }
+            }.getOrElse { throwable ->
+                updateState {
+                    it.copy(
+                        isBusy = false,
+                        statusMessage = "이미지 삭제 후 목록 갱신 실패",
+                        errorMessage = throwable.message ?: throwable::class.java.simpleName,
+                    )
+                }
+                return@launch
+            }
+            val remainingUris = screenshots.mapTo(mutableSetOf()) { it.uri.toString() }
+            val stillSelected = uiState.value.selectedScreenshotUris.intersect(remainingUris)
+            updateState {
+                it.copy(
+                    isBusy = false,
+                    latestScreenshots = screenshots,
+                    selectedScreenshotUris = stillSelected,
+                    selectedScreenshot = screenshots.firstOrNull { item ->
+                        item.uri.toString() in stillSelected
+                    },
+                    statusMessage = "선택 이미지 삭제 완료",
+                    errorMessage = null,
+                )
+            }
         }
     }
 
@@ -206,6 +304,7 @@ class DebugOcrViewModel(
                         isBusy = false,
                         latestScreenshots = emptyList(),
                         selectedScreenshot = null,
+                        selectedScreenshotUris = emptySet(),
                         statusMessage = "Screenshots 폴더에서 이미지를 찾지 못함",
                     )
                 }
@@ -216,6 +315,7 @@ class DebugOcrViewModel(
                 it.copy(
                     latestScreenshots = screenshots,
                     selectedScreenshot = screenshots.first(),
+                    selectedScreenshotUris = setOf(screenshots.first().uri.toString()),
                 )
             }
             processScreenshots(screenshots = screenshots, force = true)
@@ -281,6 +381,7 @@ class DebugOcrViewModel(
                         it.copy(
                             latestScreenshots = screenshots,
                             selectedScreenshot = latestScreenshot,
+                            selectedScreenshotUris = setOf(latestScreenshot.uri.toString()),
                             statusMessage = "새 스크린샷 감지됨",
                             errorMessage = null,
                         )

@@ -4,7 +4,6 @@ import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -48,6 +47,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -83,8 +83,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.capturemate.app.BuildConfig
-import com.capturemate.app.core.notification.NotificationScheduler
 import com.capturemate.app.data.local.entity.LifeInfoItemEntity
 import com.capturemate.app.data.local.entity.RestaurantRecommendedActionEntity
 import com.capturemate.app.data.local.entity.ScheduleItemEntity
@@ -213,10 +211,6 @@ fun MemoDetailRoute(
                         if (isPendingMemo) {
                             SaveMemoButton(onClick = { viewModel.confirmMemo(memo.id) })
                         } else {
-                            if (BuildConfig.DEBUG) {
-                                DebugNotificationTestCard(memoId = memo.id, memoTitle = memo.title)
-                            }
-
                             state.studyItem?.let { studyItem ->
                                 StudySection(
                                     studyItem = studyItem,
@@ -613,63 +607,6 @@ private fun AiSummaryCard(
 }
 
 @Composable
-private fun DebugNotificationTestCard(memoId: String, memoTitle: String) {
-    val context = LocalContext.current
-
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = CaptureSurface,
-        border = BorderStroke(1.dp, CaptureBorder),
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = "디버그: 알림 테스트", color = CaptureInk, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            Surface(
-                onClick = {
-                    NotificationScheduler.ensureChannel(context)
-                    NotificationScheduler.scheduleReminder(
-                        context = context,
-                        workName = "debug-notification-test-$memoId",
-                        memoId = memoId,
-                        title = "테스트 알림",
-                        body = memoTitle,
-                        triggerAtMillis = System.currentTimeMillis() + 30_000,
-                    )
-                    Toast.makeText(context, "30초 후 알림이 와요", Toast.LENGTH_SHORT).show()
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
-                shape = RoundedCornerShape(12.dp),
-                color = CaptureMuted,
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 10.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Notifications,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = CaptureInk,
-                    )
-                    Text(
-                        text = "30초 뒤 테스트 알림 보내기",
-                        modifier = Modifier.padding(start = 6.dp),
-                        color = CaptureInk,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun SectionCard(content: @Composable ColumnScope.() -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -936,6 +873,11 @@ private fun RestaurantSection(
 ) {
     val restaurant = restaurantMemo.restaurant
     val context = LocalContext.current
+    val hasAddress = restaurant.address != null || restaurant.roadAddress != null
+    val canUseLocationReminder = hasAddress &&
+        restaurant.latitude != null &&
+        restaurant.longitude != null
+    var showLocationReminderBlockedDialog by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SectionCard {
             Row(
@@ -944,34 +886,36 @@ private fun RestaurantSection(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(text = "맛집 정보", color = CaptureInk, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                Surface(
-                    onClick = {
-                        openNaverMapSearch(
-                            context = context,
-                            name = restaurant.name,
-                            area = restaurant.neighborhood,
-                        )
-                    },
-                    shape = RoundedCornerShape(999.dp),
-                    color = NaverMapButtonBackground,
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                if (hasAddress) {
+                    Surface(
+                        onClick = {
+                            openNaverMapSearch(
+                                context = context,
+                                name = restaurant.name,
+                                area = restaurant.neighborhood,
+                            )
+                        },
+                        shape = RoundedCornerShape(999.dp),
+                        color = NaverMapButtonBackground,
                     ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                            contentDescription = null,
-                            modifier = Modifier.size(13.dp),
-                            tint = NaverMapButtonContent,
-                        )
-                        Text(
-                            text = "네이버맵에서 보기",
-                            modifier = Modifier.padding(start = 4.dp),
-                            color = NaverMapButtonContent,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                                contentDescription = null,
+                                modifier = Modifier.size(13.dp),
+                                tint = NaverMapButtonContent,
+                            )
+                            Text(
+                                text = "네이버맵에서 보기",
+                                modifier = Modifier.padding(start = 4.dp),
+                                color = NaverMapButtonContent,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
                     }
                 }
             }
@@ -1011,8 +955,12 @@ private fun RestaurantSection(
             )?.let { priceRange ->
                 LabeledInfoRow(label = "예산", value = priceRange)
             }
-            if (restaurant.latitude == null || restaurant.longitude == null) {
-                Text(text = "좌표가 있는 맛집만 위치 알림을 설정할 수 있어요.", color = CaptureMutedForeground, fontSize = 12.sp)
+            if (!canUseLocationReminder) {
+                Text(
+                    text = "주소와 좌표가 있는 맛집만 위치 알림을 설정할 수 있어요.",
+                    color = CaptureMutedForeground,
+                    fontSize = 12.sp,
+                )
             }
         }
 
@@ -1070,17 +1018,33 @@ private fun RestaurantSection(
                     )
                 }
                 Switch(
-                    checked = restaurant.locationReminderEnabled,
-                    enabled = restaurant.latitude != null && restaurant.longitude != null,
+                    checked = restaurant.locationReminderEnabled && canUseLocationReminder,
+                    enabled = true,
                     onCheckedChange = { enabled ->
-                        onLocationReminderChange(
-                            restaurant.id,
-                            enabled,
-                            restaurant.locationReminderRadiusMeters,
-                        )
+                        if (enabled && !canUseLocationReminder) {
+                            showLocationReminderBlockedDialog = true
+                        } else {
+                            onLocationReminderChange(
+                                restaurant.id,
+                                enabled,
+                                restaurant.locationReminderRadiusMeters,
+                            )
+                        }
                     },
                 )
             }
+        }
+        if (showLocationReminderBlockedDialog) {
+            AlertDialog(
+                onDismissRequest = { showLocationReminderBlockedDialog = false },
+                confirmButton = {
+                    TextButton(onClick = { showLocationReminderBlockedDialog = false }) {
+                        Text(text = "확인")
+                    }
+                },
+                title = { Text(text = "근처 알림을 켤 수 없어요") },
+                text = { Text(text = "주소가 등록된 메모만 근처 알림을 사용할 수 있어요.") },
+            )
         }
     }
 }

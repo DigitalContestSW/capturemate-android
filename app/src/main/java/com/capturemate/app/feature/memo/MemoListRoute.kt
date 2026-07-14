@@ -23,7 +23,9 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -117,6 +119,8 @@ fun MemoListRoute(
     var isGrid by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
     var selectedRestaurantGroupId by remember { mutableStateOf<String?>(null) }
+    val listState = rememberLazyListState()
+    val gridState = rememberLazyGridState()
 
     val filtered = remember(state.memos, state.itemInfo, activeCategory, sort, status) {
         val byCategory = if (activeCategory == CATEGORY_ALL) {
@@ -166,6 +170,11 @@ fun MemoListRoute(
     val restaurantsWithCoordinates = mapRestaurants.filter {
         it.latitude != null && it.longitude != null
     }
+    val showMemoHeader = if (isGrid) {
+        gridState.firstVisibleItemIndex == 0 && gridState.firstVisibleItemScrollOffset < 8
+    } else {
+        listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset < 8
+    }
 
     Scaffold(containerColor = CaptureBackground) { innerPadding ->
         if (showSearch) {
@@ -180,11 +189,13 @@ fun MemoListRoute(
         }
 
         Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            MemoBoxHeader(
-                totalCount = state.memos.size,
-                weekCount = weekCount,
-                onSearchClick = { showSearch = true },
-            )
+            if (showMemoHeader) {
+                MemoBoxHeader(
+                    totalCount = state.memos.size,
+                    weekCount = weekCount,
+                    onSearchClick = { showSearch = true },
+                )
+            }
             CategoryTabs(
                 active = activeCategory,
                 onSelect = onActiveCategoryChange,
@@ -216,6 +227,7 @@ fun MemoListRoute(
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(2),
                         modifier = Modifier.fillMaxSize(),
+                        state = gridState,
                         contentPadding = PaddingValues(12.dp),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -254,6 +266,7 @@ fun MemoListRoute(
                 else -> {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
+                        state = listState,
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {

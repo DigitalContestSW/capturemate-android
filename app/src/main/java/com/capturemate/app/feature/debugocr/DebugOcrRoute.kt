@@ -1,6 +1,8 @@
 package com.capturemate.app.feature.debugocr
 
+import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -40,6 +42,11 @@ fun DebugOcrRoute(
         contract = ActivityResultContracts.RequestPermission(),
     ) { granted ->
         viewModel.onPermissionResult(granted)
+    }
+    val deleteLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult(),
+    ) { result ->
+        viewModel.onDeleteRequestResult(result.resultCode == Activity.RESULT_OK)
     }
 
     LaunchedEffect(Unit) {
@@ -90,6 +97,12 @@ fun DebugOcrRoute(
                     Text("선택 업로드")
                 }
                 Button(
+                    onClick = viewModel::uploadSelectedScreenshots,
+                    enabled = state.hasImagePermission && state.selectedScreenshotUris.isNotEmpty() && !state.isBusy,
+                ) {
+                    Text("선택 이미지 분석 (${state.selectedScreenshotUris.size})")
+                }
+                Button(
                     onClick = viewModel::uploadLatestScreenshots,
                     enabled = state.hasImagePermission && !state.isBusy,
                 ) {
@@ -107,11 +120,22 @@ fun DebugOcrRoute(
                 ) {
                     Text("Create sample memos")
                 }
+                OutlinedButton(
+                    onClick = {
+                        viewModel.requestDeleteSelectedScreenshots()?.let { pendingIntent ->
+                            deleteLauncher.launch(IntentSenderRequest.Builder(pendingIntent).build())
+                        }
+                    },
+                    enabled = state.hasImagePermission && state.selectedScreenshotUris.isNotEmpty() && !state.isBusy,
+                ) {
+                    Text("선택 이미지 삭제 (${state.selectedScreenshotUris.size})")
+                }
             }
 
             ScreenshotSection(
                 screenshots = state.latestScreenshots,
                 selectedScreenshot = state.selectedScreenshot,
+                selectedScreenshotUris = state.selectedScreenshotUris,
                 onSelectScreenshot = viewModel::selectScreenshot,
             )
             UploadResultSection(result = state.lastUploadResult)
@@ -153,6 +177,7 @@ private fun StatusSection(state: DebugOcrUiState) {
 private fun ScreenshotSection(
     screenshots: List<ScreenshotImage>,
     selectedScreenshot: ScreenshotImage?,
+    selectedScreenshotUris: Set<String>,
     onSelectScreenshot: (String) -> Unit,
 ) {
     SectionTitle("최신 스크린샷")
@@ -167,8 +192,8 @@ private fun ScreenshotSection(
                 ) {
                     Text(
                         text = buildString {
-                            if (screenshot.uri == selectedScreenshot?.uri) {
-                                append("선택됨 | ")
+                            if (screenshot.uri.toString() in selectedScreenshotUris) {
+                                append("✓ 선택 | ")
                             }
                             append(screenshot.displayName.ifBlank { screenshot.uri.lastPathSegment.orEmpty() })
                             append(" | ")

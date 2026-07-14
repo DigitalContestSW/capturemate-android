@@ -1,10 +1,13 @@
 package com.capturemate.app.feature.debugocr
 
+import android.app.PendingIntent
+import android.app.RecoverableSecurityException
 import android.content.ContentResolver
 import android.content.ContentUris
 import android.content.Context
 import android.database.ContentObserver
 import android.net.Uri
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
@@ -82,6 +85,23 @@ class ScreenshotMediaStore(
 
     fun unregisterObserver(observer: ContentObserver) {
         contentResolver.unregisterContentObserver(observer)
+    }
+
+    fun requestDelete(uris: List<Uri>): PendingIntent? {
+        if (uris.isEmpty()) return null
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            return MediaStore.createDeleteRequest(contentResolver, uris)
+        }
+
+        uris.forEach { uri ->
+            try {
+                contentResolver.delete(uri, null, null)
+            } catch (exception: RecoverableSecurityException) {
+                return exception.userAction.actionIntent
+            }
+        }
+        return null
     }
 }
 
