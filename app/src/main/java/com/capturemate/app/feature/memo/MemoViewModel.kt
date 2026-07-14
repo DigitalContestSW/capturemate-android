@@ -317,6 +317,12 @@ class MemoViewModel(
         }
     }
 
+    fun updateMemoTitle(memoId: String, title: String) {
+        viewModelScope.launch {
+            repository.updateMemoTitle(memoId, title)
+        }
+    }
+
     class Factory(
         private val repository: CaptureRepository,
     ) : ViewModelProvider.Factory {

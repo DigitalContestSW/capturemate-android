@@ -34,6 +34,9 @@ interface CaptureDao {
     @Query("UPDATE memos SET status = :status WHERE id = :id")
     suspend fun updateMemoStatus(id: String, status: String)
 
+    @Query("UPDATE memos SET title = :title WHERE id = :id")
+    suspend fun updateMemoTitle(id: String, title: String)
+
     @Query("DELETE FROM memos WHERE id = :id")
     suspend fun deleteMemoById(id: String)
 }

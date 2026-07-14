@@ -37,11 +37,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.Button
@@ -53,6 +56,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -69,6 +73,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -118,6 +123,7 @@ fun MemoDetailRoute(
     val state by viewModel.detailState.collectAsState()
     val context = LocalContext.current
     var showMenu by remember { mutableStateOf(false) }
+    var showEditTitle by remember { mutableStateOf(false) }
     var pendingGoogleCalendarMemoId by remember { mutableStateOf<String?>(null) }
     val googleCalendarAuthorizationLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartIntentSenderForResult(),
@@ -264,10 +270,25 @@ fun MemoDetailRoute(
                 if (showMenu) {
                     MemoMenuSheet(
                         onDismiss = { showMenu = false },
+                        onEditTitle = {
+                            showMenu = false
+                            showEditTitle = true
+                        },
                         onDelete = {
                             showMenu = false
                             viewModel.deleteMemo(memo.id)
                             onBack()
+                        },
+                    )
+                }
+
+                if (showEditTitle) {
+                    EditTitleDialog(
+                        initialTitle = memo.title,
+                        onDismiss = { showEditTitle = false },
+                        onSave = { newTitle ->
+                            viewModel.updateMemoTitle(memo.id, newTitle)
+                            showEditTitle = false
                         },
                     )
                 }
@@ -348,7 +369,11 @@ private fun DetailHeader(title: String, onBack: () -> Unit, onMenuClick: () -> U
 }
 
 @Composable
-private fun MemoMenuSheet(onDismiss: () -> Unit, onDelete: () -> Unit) {
+private fun MemoMenuSheet(
+    onDismiss: () -> Unit,
+    onEditTitle: () -> Unit,
+    onDelete: () -> Unit,
+) {
     Box(modifier = Modifier.fillMaxSize()) {
         Box(
             modifier = Modifier
@@ -363,17 +388,88 @@ private fun MemoMenuSheet(onDismiss: () -> Unit, onDelete: () -> Unit) {
             shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
             color = CaptureSurface,
         ) {
-            Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
+            Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
                 Text(
-                    text = "메모 삭제",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(onClick = onDelete)
-                        .padding(vertical = 14.dp),
-                    color = CaptureDestructive,
-                    fontSize = 15.sp,
+                    text = "메모 관리",
+                    modifier = Modifier.padding(vertical = 10.dp),
+                    color = CaptureMutedForeground,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
+                MemoMenuRow(icon = Icons.Filled.Edit, label = "제목 수정", onClick = onEditTitle)
+                MemoMenuRow(
+                    icon = Icons.Filled.Delete,
+                    label = "메모 삭제",
+                    labelColor = CaptureDestructive,
+                    onClick = onDelete,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MemoMenuRow(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    labelColor: Color = CaptureInk,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(18.dp), tint = labelColor)
+        Text(
+            text = label,
+            modifier = Modifier
+                .padding(start = 10.dp)
+                .weight(1f),
+            color = labelColor,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+            tint = CaptureMutedForeground,
+        )
+    }
+}
+
+@Composable
+private fun EditTitleDialog(
+    initialTitle: String,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit,
+) {
+    var text by remember { mutableStateOf(initialTitle) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(shape = RoundedCornerShape(16.dp), color = CaptureSurface) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(text = "제목 수정", color = CaptureInk, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp),
+                    singleLine = true,
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(onClick = onDismiss) { Text("취소") }
+                    TextButton(onClick = { if (text.isNotBlank()) onSave(text.trim()) }) { Text("저장") }
+                }
             }
         }
     }
