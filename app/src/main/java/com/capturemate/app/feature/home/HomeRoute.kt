@@ -26,19 +26,27 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Observer
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
+import com.capturemate.app.core.ocr.BackendOcrScheduler
 import com.capturemate.app.data.local.entity.MemoEntity
 import com.capturemate.app.domain.repository.CaptureRepository
 import com.capturemate.app.feature.common.categoryIcon
@@ -71,6 +79,32 @@ fun HomeRoute(
 ) {
     val state by viewModel.pendingListState.collectAsState()
     val urgentDeadline by viewModel.urgentDeadlineState.collectAsState()
+    val context = LocalContext.current
+    val workManager = remember(context) { WorkManager.getInstance(context) }
+    var startupWorkInfos by remember { mutableStateOf<List<WorkInfo>>(emptyList()) }
+    var periodicWorkInfos by remember { mutableStateOf<List<WorkInfo>>(emptyList()) }
+
+    DisposableEffect(workManager) {
+        val startupLiveData = workManager.getWorkInfosForUniqueWorkLiveData(
+            BackendOcrScheduler.STARTUP_WORK_NAME,
+        )
+        val periodicLiveData = workManager.getWorkInfosForUniqueWorkLiveData(
+            BackendOcrScheduler.PERIODIC_WORK_NAME,
+        )
+        val startupObserver = Observer<List<WorkInfo>> { startupWorkInfos = it }
+        val periodicObserver = Observer<List<WorkInfo>> { periodicWorkInfos = it }
+
+        startupLiveData.observeForever(startupObserver)
+        periodicLiveData.observeForever(periodicObserver)
+
+        onDispose {
+            startupLiveData.removeObserver(startupObserver)
+            periodicLiveData.removeObserver(periodicObserver)
+        }
+    }
+    val isAnalyzing = remember(startupWorkInfos, periodicWorkInfos) {
+        (startupWorkInfos + periodicWorkInfos).any { it.state == WorkInfo.State.RUNNING }
+    }
 
     Scaffold(containerColor = CaptureBackground) { innerPadding ->
         Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
@@ -78,6 +112,10 @@ fun HomeRoute(
                 state.memos.count { formatGroupDate(it.createdAt) == "오늘" }
             }
             HomeHeader(totalCount = state.memos.size, todayCount = todayCount)
+
+            if (isAnalyzing && state.memos.isNotEmpty()) {
+                AnalysisStatusBanner()
+            }
 
             urgentDeadline?.let { entry ->
                 UrgentDeadlineCard(entry = entry, onClick = { onMemoClick(entry.memoId) })
@@ -93,7 +131,7 @@ fun HomeRoute(
                 }
 
                 state.memos.isEmpty() -> {
-                    EmptyHome()
+                    EmptyHome(isAnalyzing = isAnalyzing)
                 }
 
                 else -> {
@@ -135,6 +173,44 @@ fun HomeRoute(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AnalysisStatusBanner() {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = CaptureSurface,
+        border = BorderStroke(1.dp, CaptureBorder),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .clip(CircleShape)
+                    .background(CaptureInk),
+            )
+            Column(modifier = Modifier.padding(start = 10.dp)) {
+                Text(
+                    text = "스크린샷 분석 중...",
+                    color = CaptureInk,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = "서버에서 OCR 처리와 메모 생성을 진행하고 있어요.",
+                    modifier = Modifier.padding(top = 2.dp),
+                    color = CaptureMutedForeground,
+                    fontSize = 12.sp,
+                )
             }
         }
     }
@@ -260,7 +336,7 @@ private fun HomeHeader(totalCount: Int, todayCount: Int) {
 }
 
 @Composable
-private fun EmptyHome() {
+private fun EmptyHome(isAnalyzing: Boolean) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -276,19 +352,27 @@ private fun EmptyHome() {
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = Icons.Filled.Check,
+                imageVector = if (isAnalyzing) Icons.Filled.PhotoCamera else Icons.Filled.Check,
                 contentDescription = null,
                 modifier = Modifier.size(26.dp),
                 tint = CaptureMutedForeground,
             )
         }
         Text(
-            text = "오늘은 모두 확인했어요",
+            text = if (isAnalyzing) "스크린샷 분석 중..." else "오늘은 모두 확인했어요",
             modifier = Modifier.padding(top = 14.dp),
             color = CaptureInk,
             fontSize = 15.sp,
             fontWeight = FontWeight.Bold,
         )
+        if (isAnalyzing) {
+            Text(
+                text = "서버에서 OCR 처리와 메모 생성을 진행하고 있어요.",
+                modifier = Modifier.padding(top = 6.dp),
+                color = CaptureMutedForeground,
+                fontSize = 12.sp,
+            )
+        }
     }
 }
 

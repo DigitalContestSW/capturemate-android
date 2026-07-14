@@ -15,28 +15,18 @@ import java.util.concurrent.TimeUnit
 
 object BackendOcrScheduler {
     private const val TAG = "BackendOcr"
-    private const val PERIODIC_WORK_NAME = "backend_ocr_periodic_sync"
-    private const val STARTUP_WORK_NAME = "backend_ocr_startup_sync"
+    const val PERIODIC_WORK_NAME = "backend_ocr_periodic_sync"
+    const val STARTUP_WORK_NAME = "backend_ocr_startup_sync"
 
     fun schedule(context: Context) {
-        Log.i(TAG, "Scheduling backend OCR worker: startup once + periodic every 15 minutes")
-
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
-            .build()
+        Log.i(TAG, "Scheduling backend OCR worker: startup once + periodic every 1 hour")
 
         val periodicRequest = PeriodicWorkRequestBuilder<BackendOcrSyncWorker>(
-            repeatInterval = 15,
-            repeatIntervalTimeUnit = TimeUnit.MINUTES,
+            repeatInterval = 1,
+            repeatIntervalTimeUnit = TimeUnit.HOURS,
         )
-            .setInitialDelay(15, TimeUnit.MINUTES)
-            .setConstraints(constraints)
-            .setInputData(workDataOf(BackendOcrSyncWorker.KEY_LIMIT to BackendOcrSyncWorker.DEFAULT_LIMIT))
-            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
-            .build()
-
-        val startupRequest = OneTimeWorkRequestBuilder<BackendOcrSyncWorker>()
-            .setConstraints(constraints)
+            .setInitialDelay(1, TimeUnit.HOURS)
+            .setConstraints(networkConstraints())
             .setInputData(workDataOf(BackendOcrSyncWorker.KEY_LIMIT to BackendOcrSyncWorker.DEFAULT_LIMIT))
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
             .build()
@@ -47,10 +37,31 @@ object BackendOcrScheduler {
             ExistingPeriodicWorkPolicy.UPDATE,
             periodicRequest,
         )
+        enqueueImmediateSync(context, ExistingWorkPolicy.REPLACE)
+    }
+
+    fun requestImmediateSync(context: Context) {
+        Log.i(TAG, "Requesting immediate backend OCR sync")
+        enqueueImmediateSync(context, ExistingWorkPolicy.KEEP)
+    }
+
+    private fun enqueueImmediateSync(context: Context, policy: ExistingWorkPolicy) {
+        val startupRequest = OneTimeWorkRequestBuilder<BackendOcrSyncWorker>()
+            .setConstraints(networkConstraints())
+            .setInputData(workDataOf(BackendOcrSyncWorker.KEY_LIMIT to BackendOcrSyncWorker.DEFAULT_LIMIT))
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+            .build()
+
+        val workManager = WorkManager.getInstance(context)
         workManager.enqueueUniqueWork(
             STARTUP_WORK_NAME,
-            ExistingWorkPolicy.REPLACE,
+            policy,
             startupRequest,
         )
     }
+
+    private fun networkConstraints(): Constraints =
+        Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
 }

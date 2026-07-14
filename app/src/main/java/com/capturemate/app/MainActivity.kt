@@ -32,6 +32,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -48,7 +49,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.capturemate.app.core.ocr.BackendOcrScheduler
 import com.capturemate.app.feature.debugocr.requiredImagePermission
 import com.capturemate.app.feature.home.HomeRoute
 import com.capturemate.app.feature.home.HomeViewModel
@@ -94,14 +99,9 @@ class MainActivity : FragmentActivity() {
         }
     }
 
-    private val requestImagePermission = registerForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { /* Permission result is checked by the OCR worker before reading screenshots. */ }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        requestImagePermissionIfNeeded()
         pendingMemoIdFromNotification = intent.getStringExtra(EXTRA_MEMO_ID)
 
         val appContainer = (application as CaptureMateApplication).appContainer
@@ -111,6 +111,7 @@ class MainActivity : FragmentActivity() {
         setContent {
             CaptureMateTheme {
                 val context = LocalContext.current
+                val lifecycleOwner = LocalLifecycleOwner.current
                 val homeViewModel: HomeViewModel = viewModel(
                     factory = HomeViewModelFactory(authRepository),
                 )
@@ -124,6 +125,23 @@ class MainActivity : FragmentActivity() {
 
                 LaunchedEffect(pendingMemoIdFromNotification) {
                     pendingMemoIdFromNotification?.let { selectedMemoId = it }
+                }
+
+                DisposableEffect(session, homeUiState.onboardingCompleted, lifecycleOwner) {
+                    if (session == null || !homeUiState.onboardingCompleted) {
+                        onDispose {}
+                    } else {
+                        BackendOcrScheduler.requestImmediateSync(context)
+                        val observer = LifecycleEventObserver { _, event ->
+                            if (event == Lifecycle.Event.ON_RESUME) {
+                                BackendOcrScheduler.requestImmediateSync(context)
+                            }
+                        }
+                        lifecycleOwner.lifecycle.addObserver(observer)
+                        onDispose {
+                            lifecycleOwner.lifecycle.removeObserver(observer)
+                        }
+                    }
                 }
 
                 val memoId = selectedMemoId
@@ -318,6 +336,7 @@ class MainActivity : FragmentActivity() {
     private fun finishPostOnboardingPermissionFlow() {
         completeOnboardingAfterPermissionFlow?.invoke()
         completeOnboardingAfterPermissionFlow = null
+        BackendOcrScheduler.requestImmediateSync(this)
     }
 
     private fun finishBackgroundLocationPermissionStep() {
@@ -325,6 +344,7 @@ class MainActivity : FragmentActivity() {
         pendingBackgroundLocationCompletion?.invoke()
         pendingBackgroundLocationCompletion = null
         completeOnboardingAfterPermissionFlow = null
+        BackendOcrScheduler.requestImmediateSync(this)
     }
 
     private fun requestFineLocationPermissionIfNeeded(): Boolean {
@@ -360,20 +380,6 @@ class MainActivity : FragmentActivity() {
             Uri.fromParts("package", packageName, null),
         )
         startActivity(intent)
-    }
-
-    private fun requestImagePermissionIfNeeded() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
-
-        val permission = requiredImagePermission()
-        val granted = ContextCompat.checkSelfPermission(
-            this,
-            permission,
-        ) == PackageManager.PERMISSION_GRANTED
-
-        if (!granted) {
-            requestImagePermission.launch(permission)
-        }
     }
 
     companion object {
