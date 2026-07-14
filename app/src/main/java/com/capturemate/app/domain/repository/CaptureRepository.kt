@@ -35,6 +35,7 @@ interface CaptureRepository {
     suspend fun analyzeAndCreateMemo(captureId: String, maskedText: String): MemoEntity
     suspend fun confirmMemo(memoId: String)
     suspend fun deleteMemo(memoId: String)
+    suspend fun updateMemoTitle(memoId: String, title: String)
     suspend fun updateStudyReviewDays(memoId: String, days: Int)
     suspend fun setDeadlineReminderEnabled(memoId: String, enabled: Boolean)
     suspend fun setCustomReminderAt(memoId: String, at: Long?)

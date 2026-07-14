@@ -371,6 +371,10 @@ class DefaultCaptureRepository(
         NotificationScheduler.cancelReminder(appContext, scheduleCustomReminderWorkName(memoId))
     }
 
+    override suspend fun updateMemoTitle(memoId: String, title: String) {
+        captureDao.updateMemoTitle(memoId, title)
+    }
+
     override suspend fun updateStudyReviewDays(memoId: String, days: Int) {
         studyItemDao.updateSelectedReviewDays(memoId, days)
         val memo = captureDao.observeMemoById(memoId).first() ?: return
@@ -582,12 +586,11 @@ class DefaultCaptureRepository(
                             memoId = memo.id,
                             keyPoints = detail.keyPoints,
                             selectedReviewDays = detail.recommendedReviewDays,
-                            reminderConfirmed = true,
+                            reminderConfirmed = false,
                             screenshotUris = detail.screenshotUris.ifEmpty { screenshotUris },
                             createdAt = createdAt,
                         ),
                     )
-                    scheduleStudyReminder(memo, detail.recommendedReviewDays)
                 }
 
                 memo.category.equals(CaptureCategory.LifeInfo.name, ignoreCase = true) -> {
@@ -602,14 +605,12 @@ class DefaultCaptureRepository(
                             target = detail.target,
                             applicationMethod = detail.applicationMethod,
                             deadline = detail.deadline,
-                            deadlineReminderEnabled = true,
-                            customReminderAt = memo.reminderAt,
+                            deadlineReminderEnabled = false,
+                            customReminderAt = null,
                             screenshotUris = detail.screenshotUris.ifEmpty { screenshotUris },
                             createdAt = createdAt,
                         ),
                     )
-                    setDeadlineReminderEnabled(memo.id, true)
-                    memo.reminderAt?.let { setCustomReminderAt(memo.id, it) }
                 }
 
                 memo.category.equals(CaptureCategory.Schedule.name, ignoreCase = true) -> {
@@ -625,30 +626,23 @@ class DefaultCaptureRepository(
                             eventDateText = detail.eventDateText,
                             location = detail.location,
                             screenshotUris = detail.screenshotUris.ifEmpty { screenshotUris },
-                            customReminderAt = memo.reminderAt ?: detail.deadlineAt,
+                            customReminderAt = null,
                             googleCalendarEventId = null,
                             googleCalendarHtmlLink = null,
                             createdAt = createdAt,
                         ),
                     )
-                    (memo.reminderAt ?: detail.deadlineAt)?.let { reminderAt ->
-                        setScheduleCustomReminderAt(memo.id, reminderAt)
-                    }
                 }
 
                 memo.category.equals(CaptureCategory.Restaurant.name, ignoreCase = true) -> {
                     val detail = json.decodeFromJsonElement<RestaurantAnalysisDto>(
                         detailElement.unwrapDetail("restaurantAnalysis"),
                     )
-                    val restaurantMemoId = upsertRestaurantAnalysis(
+                    upsertRestaurantAnalysis(
                         memo = memo,
                         detail = detail,
                         screenshotUris = screenshotUris,
                         now = createdAt,
-                    )
-                    setRestaurantLocationReminderEnabled(
-                        restaurantMemoId = restaurantMemoId,
-                        enabled = true,
                     )
                 }
             }
