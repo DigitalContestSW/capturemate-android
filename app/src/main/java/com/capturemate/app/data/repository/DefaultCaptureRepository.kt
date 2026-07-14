@@ -117,9 +117,9 @@ class DefaultCaptureRepository(
 
     override fun observeRestaurantMapState(): Flow<RestaurantMapState> =
         combine(
-            restaurantMemoDao.observeRestaurantMemos(),
+            restaurantMemoDao.observeSavedRestaurantMemos(),
             restaurantMemoDao.observeGroups(),
-            restaurantMemoDao.observeGroupMembers(),
+            restaurantMemoDao.observeSavedGroupMembers(),
         ) { restaurants, groups, members ->
             RestaurantMapState(restaurants = restaurants, groups = groups, groupMembers = members)
         }
@@ -127,7 +127,7 @@ class DefaultCaptureRepository(
     override fun observeRestaurantGroup(groupId: String): Flow<RestaurantGroup?> =
         combine(
             restaurantMemoDao.observeGroup(groupId),
-            restaurantMemoDao.observeRestaurantsInGroup(groupId),
+            restaurantMemoDao.observeSavedRestaurantsInGroup(groupId),
         ) { group, restaurants ->
             group?.let { RestaurantGroup(group = it, restaurants = restaurants) }
         }

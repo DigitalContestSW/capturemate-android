@@ -1,3 +1,4 @@
+
 *.iml
 .gradle
 /local.properties
@@ -16,6 +17,7 @@ local.properties
 docs/GITHUB_SETUP.md
 *.jks
 *.keystore
+*.apk
 
 # personal dev notes (not shared via git)
 /dev-notes/
