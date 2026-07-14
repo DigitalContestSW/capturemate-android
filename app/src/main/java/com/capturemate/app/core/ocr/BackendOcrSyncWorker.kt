@@ -9,6 +9,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.capturemate.app.CaptureMateApplication
 import com.capturemate.app.feature.debugocr.requiredImagePermission
+import kotlinx.coroutines.sync.Mutex
 import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
@@ -26,38 +27,47 @@ class BackendOcrSyncWorker(
             return Result.success()
         }
 
-        return runCatching {
-            val appContainer = (applicationContext as CaptureMateApplication).appContainer
-            appContainer.backendOcrProcessor.processLatestScreenshots(
-                limit = limit,
-                force = false,
-            )
-        }.fold(
-            onSuccess = { result ->
-                Log.i(
-                    TAG,
-                    "Worker completed: uploaded=${result.uploadedImageCount}, " +
-                        "skipped=${result.skippedImageCount}, groups=${result.groupCount}, " +
-                        "durationMs=${result.durationMillis}",
+        if (!syncMutex.tryLock()) {
+            Log.i(TAG, "Worker skipped: backend OCR sync is already running")
+            return Result.success()
+        }
+
+        try {
+            return runCatching {
+                val appContainer = (applicationContext as CaptureMateApplication).appContainer
+                appContainer.backendOcrProcessor.processLatestScreenshots(
+                    limit = limit,
+                    force = false,
                 )
-                Result.success()
-            },
-            onFailure = { throwable ->
-                when (throwable) {
-                    is ConnectException,
-                    is SocketTimeoutException,
-                    is UnknownHostException,
-                    -> {
-                        Log.w(TAG, "Worker retry: ${throwable.javaClass.simpleName}: ${throwable.message}")
-                        Result.retry()
+            }.fold(
+                onSuccess = { result ->
+                    Log.i(
+                        TAG,
+                        "Worker completed: uploaded=${result.uploadedImageCount}, " +
+                            "skipped=${result.skippedImageCount}, groups=${result.groupCount}, " +
+                            "durationMs=${result.durationMillis}",
+                    )
+                    Result.success()
+                },
+                onFailure = { throwable ->
+                    when (throwable) {
+                        is ConnectException,
+                        is SocketTimeoutException,
+                        is UnknownHostException,
+                        -> {
+                            Log.w(TAG, "Worker retry: ${throwable.javaClass.simpleName}: ${throwable.message}")
+                            Result.retry()
+                        }
+                        else -> {
+                            Log.e(TAG, "Worker failed: ${throwable.javaClass.simpleName}: ${throwable.message}", throwable)
+                            Result.failure()
+                        }
                     }
-                    else -> {
-                        Log.e(TAG, "Worker failed: ${throwable.javaClass.simpleName}: ${throwable.message}", throwable)
-                        Result.failure()
-                    }
-                }
-            },
-        )
+                },
+            )
+        } finally {
+            syncMutex.unlock()
+        }
     }
 
     private fun hasImagePermission(): Boolean {
@@ -70,6 +80,7 @@ class BackendOcrSyncWorker(
 
     companion object {
         private const val TAG = "BackendOcr"
+        private val syncMutex = Mutex()
         const val KEY_LIMIT = "limit"
         const val DEFAULT_LIMIT = 20
     }
