@@ -14,6 +14,11 @@ val localProperties = Properties().apply {
     }
 }
 
+val releaseStoreFile = localProperties.getProperty("RELEASE_STORE_FILE")
+val releaseStorePassword = localProperties.getProperty("RELEASE_STORE_PASSWORD")
+val releaseKeyAlias = localProperties.getProperty("RELEASE_KEY_ALIAS")
+val releaseKeyPassword = localProperties.getProperty("RELEASE_KEY_PASSWORD")
+
 val googleWebClientId = providers.gradleProperty("GOOGLE_WEB_CLIENT_ID")
     .orElse(providers.environmentVariable("GOOGLE_WEB_CLIENT_ID"))
     .orElse(localProperties.getProperty("GOOGLE_WEB_CLIENT_ID", ""))
@@ -59,6 +64,15 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file(requireNotNull(releaseStoreFile) { "RELEASE_STORE_FILE is missing." })
+            storePassword = requireNotNull(releaseStorePassword) { "RELEASE_STORE_PASSWORD is missing." }
+            keyAlias = requireNotNull(releaseKeyAlias) { "RELEASE_KEY_ALIAS is missing." }
+            keyPassword = requireNotNull(releaseKeyPassword) { "RELEASE_KEY_PASSWORD is missing." }
+        }
+    }
+
     defaultConfig {
         applicationId = "com.capturemate.app"
         minSdk = 29
@@ -78,6 +92,7 @@ android {
         }
 
         release {
+            signingConfig = signingConfigs.getByName("release")
             buildConfigField("String", "CAPTUREMATE_AI_BASE_URL", captureMateAiReleaseBaseUrl.asBuildConfigString())
             optimization {
                 enable = false
