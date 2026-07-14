@@ -16,8 +16,15 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 abstract class RestaurantMemoDao {
-    @Query("SELECT * FROM restaurant_memos ORDER BY createdAt DESC")
-    abstract fun observeRestaurantMemos(): Flow<List<RestaurantMemoEntity>>
+    @Query(
+        """
+        SELECT restaurant_memos.* FROM restaurant_memos
+        INNER JOIN memos ON restaurant_memos.memoId = memos.id
+        WHERE memos.status = 'Saved'
+        ORDER BY restaurant_memos.createdAt DESC
+        """,
+    )
+    abstract fun observeSavedRestaurantMemos(): Flow<List<RestaurantMemoEntity>>
 
     @Query("SELECT * FROM restaurant_memos WHERE id = :id LIMIT 1")
     abstract fun observeRestaurantMemo(id: String): Flow<RestaurantMemoEntity?>
@@ -43,8 +50,16 @@ abstract class RestaurantMemoDao {
     @Query("SELECT * FROM restaurant_groups ORDER BY title ASC")
     abstract fun observeGroups(): Flow<List<RestaurantGroupEntity>>
 
-    @Query("SELECT * FROM restaurant_group_members")
-    abstract fun observeGroupMembers(): Flow<List<RestaurantGroupMemberEntity>>
+    @Query(
+        """
+        SELECT restaurant_group_members.* FROM restaurant_group_members
+        INNER JOIN restaurant_memos
+            ON restaurant_group_members.restaurantMemoId = restaurant_memos.id
+        INNER JOIN memos ON restaurant_memos.memoId = memos.id
+        WHERE memos.status = 'Saved'
+        """,
+    )
+    abstract fun observeSavedGroupMembers(): Flow<List<RestaurantGroupMemberEntity>>
 
     @Query("SELECT * FROM restaurant_groups WHERE id = :groupId LIMIT 1")
     abstract fun observeGroup(groupId: String): Flow<RestaurantGroupEntity?>
@@ -54,11 +69,13 @@ abstract class RestaurantMemoDao {
         SELECT restaurant_memos.* FROM restaurant_memos
         INNER JOIN restaurant_group_members
             ON restaurant_memos.id = restaurant_group_members.restaurantMemoId
+        INNER JOIN memos ON restaurant_memos.memoId = memos.id
         WHERE restaurant_group_members.groupId = :groupId
+            AND memos.status = 'Saved'
         ORDER BY restaurant_memos.createdAt DESC
         """,
     )
-    abstract fun observeRestaurantsInGroup(groupId: String): Flow<List<RestaurantMemoEntity>>
+    abstract fun observeSavedRestaurantsInGroup(groupId: String): Flow<List<RestaurantMemoEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     protected abstract suspend fun upsertRestaurantMemo(entity: RestaurantMemoEntity)
