@@ -71,6 +71,6 @@ class BackendOcrSyncWorker(
     companion object {
         private const val TAG = "BackendOcr"
         const val KEY_LIMIT = "limit"
-        const val DEFAULT_LIMIT = 100
+        const val DEFAULT_LIMIT = 20
     }
 }
